@@ -5,6 +5,8 @@ venv
 screenshots
 *.keras
 *.p
-ml_model_attempts/WORKING_MODEL_SORTA/training
-ml_model_attempts/WORKING_MODEL_SORTA/validation
-ml_model_attempts/WORKING_MODEL_SORTA/evaluation
+*.npy
+ml_model_attempts/data/training
+ml_model_attempts/data/validation
+ml_model_attempts/data/evaluation
+wrongs.txt

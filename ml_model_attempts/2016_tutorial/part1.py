@@ -43,7 +43,7 @@ test_datagen = ImageDataGenerator(rescale=1.0 / 255)
 batch_size = 16
 
 training_set = train_datagen.flow_from_directory(
-    "training/",
+    "../data/training/",
     target_size=(200, 200),
     batch_size=batch_size,
     class_mode="binary",
@@ -51,7 +51,7 @@ training_set = train_datagen.flow_from_directory(
 )
 
 test_set = test_datagen.flow_from_directory(
-    "validation/",
+    "../data/validation/",
     target_size=(200, 200),
     batch_size=batch_size,
     class_mode="binary",
@@ -68,4 +68,4 @@ classifier.fit(
     validation_steps=800 // batch_size,
 )
 
-classifier.save("model.keras")
+classifier.save("model_part1.keras")

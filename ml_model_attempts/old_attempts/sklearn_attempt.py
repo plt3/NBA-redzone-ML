@@ -11,7 +11,7 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.svm import SVC
 
 # prepare data
-input_dir = "WORKING_MODEL_SORTA/training"
+input_dir = "../data/training"
 categories = ["0", "1"]
 
 data = []

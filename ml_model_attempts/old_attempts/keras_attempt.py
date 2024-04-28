@@ -11,7 +11,7 @@ image_size = (180, 180)
 batch_size = 128
 
 train_ds, val_ds = keras.utils.image_dataset_from_directory(
-    "WORKING_MODEL_SORTA/training",
+    "../data/training",
     validation_split=0.2,
     subset="both",
     seed=1337,
