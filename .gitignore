@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__
+
+venv
+screenshots
+*.keras
+*.p
+ml_model_attempts/WORKING_MODEL_SORTA/training
+ml_model_attempts/WORKING_MODEL_SORTA/validation
+ml_model_attempts/WORKING_MODEL_SORTA/evaluation
