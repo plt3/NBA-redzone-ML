@@ -33,9 +33,9 @@ def get_window_ids(space):
     result = subprocess.run(command.split(), capture_output=True, text=True, check=True)
     windows = json.loads(result.stdout)
 
-    if len(windows) != 4:
+    if len(windows) not in [1, 4]:
         raise Exception(
-            "Must have 4 windows open in space. If not 4 streams, open up blank windows to take up space."
+            "Must have 1 or 4 windows open in space. If not 4 streams, open up blank windows to take up space."
         )
     else:
         stream_window_ids = []
