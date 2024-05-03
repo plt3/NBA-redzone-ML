@@ -1,6 +1,8 @@
 import json
 import subprocess
 
+NOTIFICATION_TITLE = "NBARedZone"
+
 
 def run_shell(command, check=True):
     # split command into list with each element containing a word, except if command
@@ -43,6 +45,10 @@ def toggle_mute():
     run_shell(
         'osascript -e \'tell application "System Events" to keystroke "m" using control down\''
     )
+
+
+def notify(text, title=NOTIFICATION_TITLE):
+    run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
 
 
 def get_windows(space=None, title=False):

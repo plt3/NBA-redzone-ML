@@ -1,4 +1,5 @@
 import sys
+import time
 
 from utils import get_windows, run_shell, toggle_mute
 
@@ -25,10 +26,8 @@ def fullscreen_window(windows, window_id=None):
     # only mute focused window if it is maximized, not if in tile view
     if any([win["fullscreen"] for win in windows]):
         unmute_fullscreened_window = True
-        for window in windows:
-            if window["focus"]:
-                toggle_mute()
-                break
+        toggle_mute()
+        time.sleep(0.5)
 
     for window in windows:
         if not window["fullscreen"]:
@@ -36,6 +35,7 @@ def fullscreen_window(windows, window_id=None):
         if window_id is not None and window["id"] == window_id:
             run_shell(f"yabai -m window {window['id']} --focus")
             if unmute_fullscreened_window:
+                time.sleep(0.5)
                 toggle_mute()
             break
 
