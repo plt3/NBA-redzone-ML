@@ -16,16 +16,15 @@ def move_focus(windows, direction):
         raise Exception('direction must be one of "north", "south", "east", or "west".')
 
 
-def fullscreen_window(windows, window_id=None):
+def fullscreen_window(windows, window_id=None, from_placeholder=False):
     """If in tile view, call without specifying window_id to fullscreen focused window
     (and fullscreen all other windows behind it). If all windows are fullscreened, specify
     window_id of window to bring to front. This will also unmute it and mute previous
-    front window.
+    front window. Specify from_placeholder=True if current fullscreened window is placeholder.
     """
-    unmute_fullscreened_window = False
+    fullscreen = windows[0]["fullscreen"]
     # only mute focused window if it is maximized, not if in tile view
-    if any([win["fullscreen"] for win in windows]):
-        unmute_fullscreened_window = True
+    if fullscreen and not from_placeholder:
         toggle_mute()
         time.sleep(0.5)
 
@@ -34,7 +33,7 @@ def fullscreen_window(windows, window_id=None):
             run_shell(f"yabai -m window {window['id']} --toggle zoom-fullscreen")
         if window_id is not None and window["id"] == window_id:
             run_shell(f"yabai -m window {window['id']} --focus")
-            if unmute_fullscreened_window:
+            if fullscreen:
                 time.sleep(0.5)
                 toggle_mute()
             break

@@ -19,6 +19,21 @@ class StreamManager:
             os.getcwd(), self.placeholder_file
         )
         self.placeholder_ids = []
+        self.during_commercial = False
+
+        print(
+            f"Starting in {self.start_delay} seconds. Focus window with main stream,"
+            " and make sure to mute all other windows with ctrl + m."
+        )
+        time.sleep(self.start_delay)
+
+        for win in get_windows(title=True):
+            if win["focus"]:
+                self.main_id = win["id"]
+                print(f"Found main window with title {win['title']}")
+                break
+
+        self.add_placeholder_windows()
 
     def __del__(self):
         self.skhd_process.terminate()
@@ -56,6 +71,8 @@ class StreamManager:
             if self.placeholder_file in win["title"]:
                 self.placeholder_ids.append(win["id"])
 
+        run_shell(f"yabai -m window {self.main_id} --focus")
+
     def win_is_commercial(self, win_id=None, force=True):
         is_fullscreen = None
 
@@ -75,13 +92,15 @@ class StreamManager:
 
         return win_id, is_commercial, is_fullscreen
 
-    def avoid_commercial(self, win_id, fullscreen):
-        # find different, non placeholder window that isn't showing a commercial
+    def switch_away_from_main(self):
+        # find non-main, non placeholder window that isn't showing a commercial
         new_id = None
-        windows = get_windows(title=True)
+        windows = get_windows()
+        # windows are either all fullscreen or all tiled, so can just check first one
+        fullscreen = windows[0]["fullscreen"]
         for win in windows:
-            if win["id"] != win_id and self.placeholder_file not in win["title"]:
-                _, is_com, _ = self.win_is_commercial(win["id"])
+            if win["id"] != self.main_id and win["id"] not in self.placeholder_ids:
+                _, is_com, _ = self.win_is_commercial(win["id"], force=False)
                 if not is_com:
                     new_id = win["id"]
                     break
@@ -102,22 +121,51 @@ class StreamManager:
             print("changing mute")
             toggle_mute()
             if new_id is not None:
+                # switch to stream showing game
                 print("switching to other frame")
                 run_shell(f"yabai -m window {new_id} --focus")
                 toggle_mute()
 
+    def return_to_main(self):
+        windows = get_windows()
+        focused_id = None
+        for win in windows:
+            if win["focus"]:
+                focused_id = win["id"]
+                break
+        fullscreen = windows[0]["fullscreen"]
+        from_placeholder = focused_id in self.placeholder_ids
+
+        if fullscreen:
+            fullscreen_window(
+                windows, window_id=self.main_id, from_placeholder=from_placeholder
+            )
+        else:
+            toggle_mute()
+            if focused_id != self.main_id:
+                run_shell(f"yabai -m window {self.main_id} --focus")
+                toggle_mute()
+
+    def avoid_main_commercial(self):
+        """Switch to other stream/placeholder for the duration of commercial in main
+        stream, then switch back to main stream.
+        """
+        self.switch_away_from_main()
+
+        is_com = True
+        while is_com:
+            time.sleep(5)  # TOOD: in practice this might be shorter than normal?
+            _, is_com, _ = self.win_is_commercial(self.main_id, force=False)
+
+        self.return_to_main()
+
     def handle_if_commercial(self):
-        win_id, commercial, fullscreen = self.win_is_commercial()
+        _, commercial, _ = self.win_is_commercial()
         if commercial:
-            self.avoid_commercial(win_id, fullscreen)
+            self.avoid_main_commercial()
 
     def mainloop(self):
         try:
-            print(
-                f"Starting in {self.start_delay} seconds. Switch to space with streams now."
-            )
-            time.sleep(self.start_delay)
-            self.add_placeholder_windows()
             while True:
                 time.sleep(5)
                 print("handling")
