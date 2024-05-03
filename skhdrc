@@ -1,0 +1,13 @@
+# TODO: fix interaction between karabiner and these hotkeys
+
+ctrl - f : python3 manage_windows.py toggle_fullscreen
+
+ctrl - up : python3 manage_windows.py move_north
+ctrl - down : python3 manage_windows.py move_south
+ctrl - right : python3 manage_windows.py move_east
+ctrl - left : python3 manage_windows.py move_west
+
+# TODO: can you just whitelist Brave? So it doesn't work anywhere else
+.blacklist [
+    "iTerm2"
+]
