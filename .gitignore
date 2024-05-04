@@ -6,6 +6,8 @@ screenshots
 *.keras
 *.p
 *.npy
+*.mp4
+*.jpg
 ml_model_attempts/data/training
 ml_model_attempts/data/validation
 ml_model_attempts/data/evaluation
