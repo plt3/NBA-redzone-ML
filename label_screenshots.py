@@ -16,11 +16,17 @@ label to end of image's filename. Stop by quitting the Python app.
 
 GAME_CLASS = "game"
 COMMERCIAL_CLASS = "com"
+SORTED_DATA_DIRECTORY = "sorted_screenshots"
 
 
 class MainWindow(QWidget):
     def __init__(self, parent=None):
         QWidget.__init__(self, parent=parent)
+
+        os.makedirs(os.path.join(SORTED_DATA_DIRECTORY, GAME_CLASS), exist_ok=True)
+        os.makedirs(
+            os.path.join(SORTED_DATA_DIRECTORY, COMMERCIAL_CLASS), exist_ok=True
+        )
 
         self.finished = False
         self.setMinimumSize(800, 500)
@@ -56,8 +62,9 @@ class MainWindow(QWidget):
 
     def changePic(self):
         try:
-            self.current_pic = os.path.join("screenshots", self.screenshots.pop())
-            self.pix_map = QPixmap(self.current_pic).scaledToWidth(600)
+            self.current_pic = self.screenshots.pop()
+            self.current_path = os.path.join("screenshots", self.current_pic)
+            self.pix_map = QPixmap(self.current_path).scaledToWidth(600)
             self.image_label.setPixmap(self.pix_map)
         except IndexError:
             self.instruction_label.setText("All images labeled.")
@@ -66,17 +73,22 @@ class MainWindow(QWidget):
     def keyPressEvent(self, a0):
         if not self.finished:
             if Qt.Key(a0.key()).name == "Key_Right":
-                new_name = self.current_pic.replace(
-                    f".{FILE_EXTENSION}", f"_{GAME_CLASS}.{FILE_EXTENSION}"
-                )
-                os.rename(self.current_pic, new_name)
-                self.changePic()
+                img_class = GAME_CLASS
             elif Qt.Key(a0.key()).name == "Key_Left":
-                new_name = self.current_pic.replace(
-                    f".{FILE_EXTENSION}", f"_{COMMERCIAL_CLASS}.{FILE_EXTENSION}"
-                )
-                os.rename(self.current_pic, new_name)
-                self.changePic()
+                img_class = COMMERCIAL_CLASS
+            else:
+                return
+
+            new_fname = self.current_pic.replace(
+                f".{FILE_EXTENSION}", f"_{img_class}.{FILE_EXTENSION}"
+            )
+            new_path = os.path.join(SORTED_DATA_DIRECTORY, img_class, new_fname)
+
+            if not os.path.exists(new_path):
+                os.rename(self.current_path, new_path)
+            else:
+                raise Exception(f"{new_path} already exists???")
+            self.changePic()
 
 
 if __name__ == "__main__":

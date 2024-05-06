@@ -1,14 +1,24 @@
 import matplotlib.pyplot as plt
+from setup_datasets import IMAGE_DIMS, get_datasets
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.utils import image_dataset_from_directory
 
-MODEL_FILE_NAME = "actual_part1.keras"
+model_file_name = "part2_cropped.keras"
+train_dataset, validation_dataset, test_dataset = get_datasets()
+
+data_augmentation = keras.Sequential(
+    [
+        layers.RandomFlip("horizontal"),
+        layers.RandomRotation(0.1),
+        layers.RandomZoom(0.2),
+    ]
+)
 
 # 180x180px is pretty much arbitrary
-inputs = keras.Input(shape=(180, 180, 3))
+inputs = keras.Input(shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3))
+x = data_augmentation(inputs)
 # get inputs to [0, 1] range instead of [0, 255] range
-x = layers.Rescaling(1.0 / 255)(inputs)
+x = layers.Rescaling(1.0 / 255)(x)
 x = layers.Conv2D(filters=32, kernel_size=3, activation="relu")(x)
 x = layers.MaxPooling2D(pool_size=2)(x)
 x = layers.Conv2D(filters=64, kernel_size=3, activation="relu")(x)
@@ -19,34 +29,24 @@ x = layers.Conv2D(filters=256, kernel_size=3, activation="relu")(x)
 x = layers.MaxPooling2D(pool_size=2)(x)
 x = layers.Conv2D(filters=256, kernel_size=3, activation="relu")(x)
 x = layers.Flatten()(x)
+x = layers.Dropout(0.5)(x)
 outputs = layers.Dense(1, activation="sigmoid")(x)
 model = keras.Model(inputs=inputs, outputs=outputs)
 
 model.compile(loss="binary_crossentropy", optimizer="rmsprop", metrics=["accuracy"])
 
-# 2000 images
-train_dataset = image_dataset_from_directory(
-    "../data/training", image_size=(180, 180), batch_size=32
-)
-# 1000 images
-validation_dataset = image_dataset_from_directory(
-    "../data/validation", image_size=(180, 180), batch_size=32
-)
-# 1984 images
-test_dataset = image_dataset_from_directory(
-    "../data/evaluation", image_size=(180, 180), batch_size=32
-)
-
 # save model every epoch, overwriting file to only save best epoch each time
 callbacks = [
     keras.callbacks.ModelCheckpoint(
-        filepath=MODEL_FILE_NAME, save_best_only=True, monitor="val_loss"
+        filepath=model_file_name,
+        save_best_only=True,
+        monitor="val_loss",
     )
 ]
 
-# book did 50 epochs, I was impatient
+# book did 100 epochs, I was impatient
 history = model.fit(
-    train_dataset, epochs=15, validation_data=validation_dataset, callbacks=callbacks
+    train_dataset, epochs=50, validation_data=validation_dataset, callbacks=callbacks
 )
 
 accuracy = history.history["accuracy"]
@@ -65,8 +65,7 @@ plt.title("Training and validation loss")
 plt.legend()
 plt.show()
 
-# # this gets 84.4% accuracy on the test data, while it gets 69.5% on the dog/cat data
-# # in the book. Wonder why
-# test_model = keras.models.load_model(MODEL_FILE_NAME)
+# # this gets 96.3% accuracy on the test data sweeeeeeet
+# test_model = keras.models.load_model(model_file_name)
 # test_loss, test_acc = test_model.evaluate(test_dataset)
 # print(f"Test accuracy: {test_acc:.3f}")

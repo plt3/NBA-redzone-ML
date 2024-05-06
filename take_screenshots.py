@@ -5,6 +5,8 @@ import sys
 import time
 from datetime import datetime
 
+from utils import take_screenshot
+
 """
 Take screenshots of windows in given space that are displaying streams at regular interval
 in order to get data for ML model.
@@ -15,17 +17,6 @@ Press ctrl + c to stop
 FILE_EXTENSION = "jpg"
 SCREENSHOT_INTERVAL = 60
 DATA_DIRECTORY = 'screenshots'
-
-
-def take_screenshot(window_id, directory):
-    # note: need https://stackoverflow.com/a/55319979/14146321 to resize image and be
-    # able to save it to disk (otherwise, skimage.transform.resize makes floats between
-    # 0 and 1)
-    filename = f'{datetime.now().strftime("%y-%m-%d_%H-%M-%S")}_{window_id}.{FILE_EXTENSION}'
-    file_path = os.path.join(directory, filename)
-    command = f"screencapture -oxl {window_id} -t {FILE_EXTENSION} {file_path}"
-    subprocess.run(command.split(), check=True)
-    print(f"Took screenshot {file_path}")
 
 
 def get_window_ids(space):
@@ -64,7 +55,10 @@ def main():
         while True:
             time.sleep(SCREENSHOT_INTERVAL)
             for id in ids:
+                filename = f'{datetime.now().strftime("%y-%m-%d_%H-%M-%S")}_{id}.{FILE_EXTENSION}'
+                file_path = os.path.join(DATA_DIRECTORY, filename)
                 take_screenshot(id, DATA_DIRECTORY)
+                print(f"Took screenshot {file_path}")
 
 
 if __name__ == "__main__":

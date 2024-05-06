@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 
 NOTIFICATION_TITLE = "NBARedZone"
@@ -49,6 +50,15 @@ def toggle_mute():
 
 def notify(text, title=NOTIFICATION_TITLE):
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
+
+
+def take_screenshot(window_id, file_path):
+    # note: need https://stackoverflow.com/a/55319979/14146321 to resize image and be
+    # able to save it to disk (otherwise, skimage.transform.resize makes floats between
+    # 0 and 1)
+    extension = os.path.splitext(file_path)[1].removeprefix(".")
+    command = f"screencapture -oxl {window_id} -t {extension} {file_path}"
+    run_shell(command)
 
 
 def get_windows(space=None, title=False):
