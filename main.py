@@ -9,20 +9,14 @@ from tensorflow import keras
 from tensorflow.keras.preprocessing.image import img_to_array
 
 from ml_models.crop_screenshots import ImageCropper
-
 # TODO: deal with this
 # from ml_models.setup_datasets import IMAGE_DIMS
-from utils import (
-    control_stream_audio,
-    get_chrome_cli_ids,
-    get_focused_space,
-    get_window_video_elements,
-    get_windows,
-    run_shell,
-    take_screenshot,
-)
+from utils import (choose_main_window_id, choose_space, control_stream_audio,
+                   get_chrome_cli_ids, get_window_video_elements, get_windows,
+                   let_user_choose_iframe, run_shell, take_screenshot)
 
 IMAGE_DIMS = (200, 320)
+FORCE_COMMERCIAL = None
 
 
 class StreamManager:
@@ -49,29 +43,19 @@ class StreamManager:
         )
         self.top_model = keras.models.load_model(self.model_file_name)
 
-        print(f"Starting in {self.start_delay} seconds. Focus window with main stream.")
-        time.sleep(self.start_delay)
-
-        self.space = get_focused_space()
+        self.space = choose_space()
         windows = get_windows(self.space, title=True)
         self.id_dict = get_chrome_cli_ids(windows)
 
-        for win in windows:
-            if win["focus"]:
-                # TODO: self.main_id won't update with any keybinds now. Need to handle
-                self.main_id = win["id"]
-                title = win["title"].removesuffix(" - Audio playing")
-                print(
-                    f'Found main window with title "{title}" in space'
-                    f" {self.space}. You may now switch away if desired."
-                )
-                break
-        else:
-            raise Exception(
-                "No window with focus found, so unable to determine main stream."
-            )
+        self.main_id, title = choose_main_window_id(windows)
+        print(f'Selected main window with title "{title}" in space {self.space}.')
 
         self.handle_iframes(windows)
+
+        print(
+            "\nSetup done. Make sure space with streams is visible,"
+            " or software will not work.\n"
+        )
 
         # TODO: update this with keybinds too (threading)
         self.focused_id = self.main_id
@@ -86,24 +70,22 @@ class StreamManager:
             pass
 
     def handle_iframes(self, windows):
+        """Can't mute/unmute a page with JavaScript if its video elements are playing
+        in iframes due to same-origin policy. Therefore, detect this and let user
+        choose a stream that was in an iframe as whole page.
+        """
         for win in windows:
-            video_obj = get_window_video_elements(self.id_dict[win["id"]])
+            chrome_cli_id = self.id_dict[win["id"]]
+            video_obj = get_window_video_elements(chrome_cli_id)
+
             if not video_obj["has_video"]:
+                iframes = video_obj["iframes"]
                 title = win["title"].removesuffix(" - Audio playing")
-                if len(video_obj["iframes"]) == 0:
+
+                if len(iframes) == 0:
                     raise Exception(f'No stream found in window with title "{title}"')
-                print(
-                    "No HTML video elements found in window with title"
-                    f' "{title}". Try one of these iframes found on the page:\n'
-                )
-                for index, iframe in enumerate(video_obj["iframes"]):
-                    print(f"{index + 1}. {iframe}")
-                # TODO: handle input and make nicer UI?
-                iframe_choice = int(input("\nEnter a number: "))
-                run_shell(
-                    f'brave-cli open {video_obj["iframes"][iframe_choice-1]}'
-                    f' -t {self.id_dict[win["id"]]}'
-                )
+
+                let_user_choose_iframe(title, iframes, chrome_cli_id)
 
     def fullscreen_window(self, windows, window_id):
         """If in tile view, call without specifying window_id to fullscreen focused window
@@ -170,7 +152,9 @@ class StreamManager:
         fullscreen = windows[0]["fullscreen"]
         for win in windows:
             if win["id"] != self.main_id and win["id"] not in self.placeholder_ids:
-                _, is_com, _ = self.win_is_commercial(win["id"], False, force=False)
+                _, is_com, _ = self.win_is_commercial(
+                    win["id"], False, force=FORCE_COMMERCIAL
+                )
                 if not is_com:
                     new_id = win["id"]
                     self.focused_id = new_id
@@ -213,12 +197,14 @@ class StreamManager:
         while is_com:
             time.sleep(5)  # TOOD: in practice this might be shorter than normal?
             # don't double check when already on commercial
-            _, is_com, _ = self.win_is_commercial(self.main_id, False, force=False)
+            _, is_com, _ = self.win_is_commercial(
+                self.main_id, False, force=FORCE_COMMERCIAL
+            )
 
         self.return_to_main()
 
     def handle_if_commercial(self):
-        _, commercial, _ = self.win_is_commercial(self.main_id, force=True)
+        _, commercial, _ = self.win_is_commercial(self.main_id, force=FORCE_COMMERCIAL)
         if commercial:
             self.avoid_main_commercial()
 

@@ -1,6 +1,9 @@
 import json
 import os
 import subprocess
+import time
+
+from simple_term_menu import TerminalMenu
 
 NOTIFICATION_TITLE = "NBARedZone"
 
@@ -84,15 +87,100 @@ def take_screenshot(window_id, file_path):
     run_shell(command)
 
 
-def get_focused_space():
-    command = "yabai -m query --spaces"
-    spaces = json.loads(run_shell(command))
+def wait_for_load(chrome_cli_id):
+    command = f"OUTPUT_FORMAT=json brave-cli info -t {chrome_cli_id}"
+    while json.loads(run_shell(command, shell=True))["loading"]:
+        time.sleep(0.5)
 
-    for space in spaces:
-        if space["has-focus"]:
-            return space["index"]
 
-    raise Exception("No focused space found.")
+def let_user_choose_iframe(win_title, iframes, chrome_cli_id):
+    menu_title = (
+        f'\nPage with title "{win_title}" is not scriptable. '
+        "Try one of these streams embedded in the page:\n"
+    )
+    iframe_choices = [f"[{i + 1}] {frame}" for i, frame in enumerate(iframes)]
+    continue_added = False
+    choice_index = 0
+    while choice_index != len(iframes):
+        terminal_menu = TerminalMenu(
+            iframe_choices,
+            title=menu_title,
+            cursor_index=choice_index,
+            raise_error_on_interrupt=True,
+            shortcut_key_highlight_style=("fg_green",),
+            menu_highlight_style=("underline",),
+        )
+        choice_index = terminal_menu.show()
+        if choice_index != len(iframes):
+            run_shell(f"brave-cli open {iframes[choice_index]}" f" -t {chrome_cli_id}")
+            wait_for_load(chrome_cli_id)
+            has_video = get_window_video_elements(chrome_cli_id)["has_video"]
+            if has_video:
+                menu_title = (
+                    "\nSelected page is scriptable. Press c to continue,"
+                    " or choose a different one:\n"
+                )
+                if not continue_added:
+                    iframe_choices.append(f"[c] continue")
+                    continue_added = True
+            else:
+                menu_title = (
+                    "\nSelected page is still not scriptable. Try a different one:\n"
+                )
+                if continue_added:
+                    iframe_choices.pop()
+                    continue_added = False
+
+
+def choose_space():
+    spaces = json.loads(run_shell("yabai -m query --spaces"))
+    spaces.sort(key=lambda space: space["index"])
+    space_indices = [space["index"] for space in spaces]
+    probable_index = 0
+    for i, space in enumerate(spaces):
+        if space["is-visible"] and not space["has-focus"]:
+            probable_index = i
+            break
+
+    terminal_menu = TerminalMenu(
+        [f"[{index}] space {index}" for index in space_indices],
+        title="\nSelect space containing stream(s):\n",
+        cursor_index=probable_index,
+        raise_error_on_interrupt=True,
+        shortcut_key_highlight_style=("fg_green",),
+        menu_highlight_style=("underline",),
+    )
+
+    choice_index = terminal_menu.show()
+    if choice_index is None:
+        raise Exception("No space selected.")
+
+    return space_indices[choice_index]
+
+
+def choose_main_window_id(windows):
+    if len(windows) == 0:
+        raise Exception(f"No windows found in given space.")
+    elif len(windows) == 1:
+        choice_index = 0
+    else:
+        terminal_menu = TerminalMenu(
+            [
+                f"[{i + 1}] {win['title'].removesuffix(' - Audio playing')}"
+                for i, win in enumerate(windows)
+            ],
+            title="\nSelect main stream:\n",
+            raise_error_on_interrupt=True,
+            shortcut_key_highlight_style=("fg_green",),
+            menu_highlight_style=("underline",),
+        )
+
+        choice_index = terminal_menu.show()
+        if choice_index is None:
+            raise Exception("No main window selected.")
+
+    title = windows[choice_index]["title"].removesuffix(" - Audio playing")
+    return windows[choice_index]["id"], title
 
 
 def get_windows(space, title=False):
