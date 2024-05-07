@@ -105,7 +105,8 @@ class StreamManager:
             img = cropper.crop_image(resize_dims=(IMAGE_DIMS[1], IMAGE_DIMS[0]))
         except Exception as e:
             print(e)
-            img = cropper.img  # use uncropped image as input if error cropping
+            # use uncropped image as input if error cropping
+            img = cropper.img.resize((IMAGE_DIMS[1], IMAGE_DIMS[0]))
         img_arr = img_to_array(img)
         img_arr = np.array([img_arr])
         input = keras.applications.vgg16.preprocess_input(img_arr)

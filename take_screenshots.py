@@ -57,7 +57,7 @@ def main():
             for id in ids:
                 filename = f'{datetime.now().strftime("%y-%m-%d_%H-%M-%S")}_{id}.{FILE_EXTENSION}'
                 file_path = os.path.join(DATA_DIRECTORY, filename)
-                take_screenshot(id, DATA_DIRECTORY)
+                take_screenshot(id, file_path)
                 print(f"Took screenshot {file_path}")
 
 
