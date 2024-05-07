@@ -15,7 +15,7 @@ data_augmentation = keras.Sequential(
 )
 
 # 180x180px is pretty much arbitrary
-inputs = keras.Input(shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3))
+inputs = keras.Input(shape=IMAGE_DIMS + (3,))
 x = data_augmentation(inputs)
 # get inputs to [0, 1] range instead of [0, 255] range
 x = layers.Rescaling(1.0 / 255)(x)

@@ -2,16 +2,25 @@ import os
 import subprocess
 import time
 
+print("Importing Python machine learning libraries, this may take a few seconds...")
+
 import numpy as np
 from tensorflow import keras
 from tensorflow.keras.preprocessing.image import img_to_array
 
-from manage_windows import fullscreen_window
 from ml_models.crop_screenshots import ImageCropper
 
 # TODO: deal with this
 # from ml_models.setup_datasets import IMAGE_DIMS
-from utils import get_windows, notify, run_shell, take_screenshot, toggle_mute
+from utils import (
+    control_stream_audio,
+    get_chrome_cli_ids,
+    get_focused_space,
+    get_window_video_elements,
+    get_windows,
+    run_shell,
+    take_screenshot,
+)
 
 IMAGE_DIMS = (200, 320)
 
@@ -36,65 +45,81 @@ class StreamManager:
         self.conv_base = keras.applications.vgg16.VGG16(
             weights="imagenet",
             include_top=False,
-            input_shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3),
+            input_shape=IMAGE_DIMS + (3,),
         )
         self.top_model = keras.models.load_model(self.model_file_name)
 
-        print(
-            f"Starting in {self.start_delay} seconds. Focus window with main stream,"
-            " and make sure to mute all other windows with ctrl + m."
-        )
+        print(f"Starting in {self.start_delay} seconds. Focus window with main stream.")
         time.sleep(self.start_delay)
 
-        for win in get_windows(title=True):
-            if win["focus"]:
-                self.main_id = win["id"]
-                print(f"Found main window with title {win['title']}")
-                break
+        self.space = get_focused_space()
+        windows = get_windows(self.space, title=True)
+        self.id_dict = get_chrome_cli_ids(windows)
 
-        self.add_placeholder_windows()
+        for win in windows:
+            if win["focus"]:
+                # TODO: self.main_id won't update with any keybinds now. Need to handle
+                self.main_id = win["id"]
+                title = win["title"].removesuffix(" - Audio playing")
+                print(
+                    f'Found main window with title "{title}" in space'
+                    f" {self.space}. You may now switch away if desired."
+                )
+                break
+        else:
+            raise Exception(
+                "No window with focus found, so unable to determine main stream."
+            )
+
+        self.handle_iframes(windows)
+
+        # TODO: update this with keybinds too (threading)
+        self.focused_id = self.main_id
 
     def __del__(self):
         self.skhd_process.terminate()
         print("skhd process terminated.")
         try:
             os.remove(self.screenshot_tempfile)
+            print("Screenshot temp image file removed.")
         except FileNotFoundError:
             pass
 
-    def add_placeholder_windows(self):
-        """Open extra windows to always have 1 or 4 windows open in space"""
-        win_cmd = f"open -a 'Brave Browser.app' -n --args --new-window --app={self.placeholder_uri}"
-        windows = get_windows(title=True)
-
-        if len(windows) in [2, 3]:
-            notify(
-                "Adding placeholder windows to have 4 windows in space. Adjust if necessary."
-            )
-
-        while len(windows) in [2, 3]:
-            run_shell(win_cmd)
-
-            if len(windows) == 2:
-                not_focused_id = None
-                for win in windows:
-                    if not win["focus"]:
-                        not_focused_id = win["id"]
-                        break
-
-                time.sleep(0.5)
-                run_shell(f"yabai -m window {not_focused_id} --focus")
-                time.sleep(0.5)
-                run_shell(win_cmd)
-
-            time.sleep(0.5)
-            windows = get_windows(title=True)
-
+    def handle_iframes(self, windows):
         for win in windows:
-            if self.placeholder_file in win["title"]:
-                self.placeholder_ids.append(win["id"])
+            video_obj = get_window_video_elements(self.id_dict[win["id"]])
+            if not video_obj["has_video"]:
+                title = win["title"].removesuffix(" - Audio playing")
+                if len(video_obj["iframes"]) == 0:
+                    raise Exception(f'No stream found in window with title "{title}"')
+                print(
+                    "No HTML video elements found in window with title"
+                    f' "{title}". Try one of these iframes found on the page:\n'
+                )
+                for index, iframe in enumerate(video_obj["iframes"]):
+                    print(f"{index + 1}. {iframe}")
+                # TODO: handle input and make nicer UI?
+                iframe_choice = int(input("\nEnter a number: "))
+                run_shell(
+                    f'brave-cli open {video_obj["iframes"][iframe_choice-1]}'
+                    f' -t {self.id_dict[win["id"]]}'
+                )
 
-        run_shell(f"yabai -m window {self.main_id} --focus")
+    def fullscreen_window(self, windows, window_id):
+        """If in tile view, call without specifying window_id to fullscreen focused window
+        (and fullscreen all other windows behind it). If all windows are fullscreened, specify
+        window_id of window to bring to front. This will also unmute it and mute previous
+        front window.
+        """
+        for window in windows:
+            if not window["fullscreen"]:
+                run_shell(f"yabai -m window {window['id']} --toggle zoom-fullscreen")
+            if window["id"] == window_id:
+                run_shell(f"yabai -m window {window['id']} --focus")
+                self.focused_id = window_id
+            control_stream_audio(
+                self.id_dict[window["id"]], mute=(window["id"] != window_id)
+            )
 
     def run_classifier_on_screenshot(self, win_id, double_check_commercials=True):
         start = time.time()
@@ -126,18 +151,8 @@ class StreamManager:
             print(f"looks like NBA. {res_str}")
             return False
 
-    def win_is_commercial(self, win_id=None, double_check=True, force=None):
+    def win_is_commercial(self, win_id, double_check=True, force=None):
         is_fullscreen = None
-
-        # use focused window if no win_id specified
-        if win_id is None:
-            for win in get_windows():
-                if win["focus"]:
-                    win_id = win["id"]
-                    is_fullscreen = win["fullscreen"]
-                    break
-            if win_id is None:
-                raise Exception("No focused window found.")
 
         if force is not None:
             is_commercial = force  # for testing
@@ -150,57 +165,43 @@ class StreamManager:
         print("switching away from main stream")
         # find non-main, non placeholder window that isn't showing a commercial
         new_id = None
-        windows = get_windows()
+        windows = get_windows(self.space)
         # windows are either all fullscreen or all tiled, so can just check first one
         fullscreen = windows[0]["fullscreen"]
         for win in windows:
             if win["id"] != self.main_id and win["id"] not in self.placeholder_ids:
-                _, is_com, _ = self.win_is_commercial(win["id"], False)
+                _, is_com, _ = self.win_is_commercial(win["id"], False, force=False)
                 if not is_com:
                     new_id = win["id"]
+                    self.focused_id = new_id
                     break
 
         if fullscreen:
             if new_id is not None:
                 print("fs other stream")
                 # fullscreen stream showing game
-                fullscreen_window(windows, new_id)
+                self.fullscreen_window(windows, new_id)
             else:
-                # fullscreen placeholder if no streams showing games
-                if len(self.placeholder_ids) > 0:
-                    print("fs placeholder")
-                    fullscreen_window(windows, self.placeholder_ids[0])
-                else:
-                    toggle_mute()
+                control_stream_audio(self.id_dict[self.main_id], mute=True)
         else:
-            print("changing mute")
-            toggle_mute()
+            print("muting")
+            control_stream_audio(self.id_dict[self.main_id], mute=True)
             if new_id is not None:
                 # switch to stream showing game
                 print("switching to other frame")
-                run_shell(f"yabai -m window {new_id} --focus")
-                toggle_mute()
+                control_stream_audio(self.id_dict[new_id], mute=False)
 
     def return_to_main(self):
         print("returning to main stream")
-        windows = get_windows()
-        focused_id = None
-        for win in windows:
-            if win["focus"]:
-                focused_id = win["id"]
-                break
+        windows = get_windows(self.space)
         fullscreen = windows[0]["fullscreen"]
-        from_placeholder = focused_id in self.placeholder_ids
 
         if fullscreen:
-            fullscreen_window(
-                windows, window_id=self.main_id, from_placeholder=from_placeholder
-            )
+            self.fullscreen_window(windows, self.main_id)
         else:
-            toggle_mute()
-            if focused_id != self.main_id:
-                run_shell(f"yabai -m window {self.main_id} --focus")
-                toggle_mute()
+            control_stream_audio(self.id_dict[self.focused_id], mute=True)
+            control_stream_audio(self.id_dict[self.main_id], mute=False)
+            self.focused_id = self.main_id
 
     def avoid_main_commercial(self):
         """Switch to other stream/placeholder for the duration of commercial in main
@@ -212,12 +213,12 @@ class StreamManager:
         while is_com:
             time.sleep(5)  # TOOD: in practice this might be shorter than normal?
             # don't double check when already on commercial
-            _, is_com, _ = self.win_is_commercial(self.main_id, False)
+            _, is_com, _ = self.win_is_commercial(self.main_id, False, force=False)
 
         self.return_to_main()
 
     def handle_if_commercial(self):
-        _, commercial, _ = self.win_is_commercial()
+        _, commercial, _ = self.win_is_commercial(self.main_id, force=True)
         if commercial:
             self.avoid_main_commercial()
 

@@ -15,7 +15,7 @@ model_file_name = "part3_cropped.keras"
 train_dataset, validation_dataset, test_dataset = get_datasets()
 
 conv_base = keras.applications.vgg16.VGG16(
-    weights="imagenet", include_top=False, input_shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3)
+    weights="imagenet", include_top=False, input_shape=IMAGE_DIMS + (3,)
 )
 
 
