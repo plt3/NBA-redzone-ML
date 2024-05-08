@@ -1,43 +1,26 @@
-import os
 import subprocess
 import time
 
-print("Importing Python machine learning libraries, this may take a few seconds...")
-
-import numpy as np
-from tensorflow import keras
-from tensorflow.keras.preprocessing.image import img_to_array
-
-from ml_models.crop_screenshots import ImageCropper
-# TODO: deal with this
-# from ml_models.setup_datasets import IMAGE_DIMS
+from classifier import Classifier
 from utils import (choose_main_window_id, choose_space, control_stream_audio,
                    control_stream_overlay, get_chrome_cli_ids,
                    get_window_video_elements, get_windows,
-                   let_user_choose_iframe, run_shell, take_screenshot)
+                   let_user_choose_iframe, run_shell)
 
-IMAGE_DIMS = (200, 320)
 FORCE_COMMERCIAL = None
+MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
 
 
 class StreamManager:
     start_delay = 5
-    screenshot_tempfile = "nbaredzone_screenshot.jpg"
-    model_file_name = "ml_models/part3_cropped.keras"
 
     def __init__(self):
         # run skhd_process in background for hotkeys to work
         self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"])
         print("skhd process started.")
 
+        self.classifier = Classifier(MODEL_FILE_PATH)
         self.during_commercial = False
-
-        self.conv_base = keras.applications.vgg16.VGG16(
-            weights="imagenet",
-            include_top=False,
-            input_shape=IMAGE_DIMS + (3,),
-        )
-        self.top_model = keras.models.load_model(self.model_file_name)
 
         self.space = choose_space()
         windows = get_windows(self.space, title=True)
@@ -59,11 +42,6 @@ class StreamManager:
     def __del__(self):
         self.skhd_process.terminate()
         print("skhd process terminated.")
-        try:
-            os.remove(self.screenshot_tempfile)
-            print("Screenshot temp image file removed.")
-        except FileNotFoundError:
-            pass
 
     def handle_iframes(self, windows):
         """Can't mute/unmute a page with JavaScript if its video elements are playing
@@ -99,43 +77,13 @@ class StreamManager:
                 self.id_dict[window["id"]], mute=(window["id"] != window_id)
             )
 
-    def run_classifier_on_screenshot(self, win_id, double_check_commercials=True):
-        start = time.time()
-        take_screenshot(win_id, self.screenshot_tempfile)
-        before_classify = time.time()
-        cropper = ImageCropper(self.screenshot_tempfile)
-        try:
-            img = cropper.crop_image(resize_dims=(IMAGE_DIMS[1], IMAGE_DIMS[0]))
-        except Exception as e:
-            print(e)
-            # use uncropped image as input if error cropping
-            img = cropper.img.resize((IMAGE_DIMS[1], IMAGE_DIMS[0]))
-        img_arr = img_to_array(img)
-        img_arr = np.array([img_arr])
-        input = keras.applications.vgg16.preprocess_input(img_arr)
-        features = self.conv_base.predict(input, verbose=0)
-        prediction = self.top_model.predict(features, verbose=0)
-        done = time.time()
-        res_str = f"{round(before_classify - start, 2)}s to take sc, {round(done - before_classify, 2)} to classify"
-
-        if prediction[0][0] <= 0.5:
-            print(f"looks like commercial. {res_str}")
-            if double_check_commercials:
-                print("Double checking:")
-                time.sleep(3)
-                return self.run_classifier_on_screenshot(win_id, False)
-            return True
-        else:
-            print(f"looks like NBA. {res_str}")
-            return False
-
     def win_is_commercial(self, win_id, double_check=True, force=None):
         is_fullscreen = None
 
         if force is not None:
             is_commercial = force  # for testing
         else:
-            is_commercial = self.run_classifier_on_screenshot(win_id, double_check)
+            is_commercial = self.classifier.classify(win_id, double_check)
 
         return win_id, is_commercial, is_fullscreen
 
