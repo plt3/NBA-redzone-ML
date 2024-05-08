@@ -49,17 +49,35 @@ def run_shell(command, check=True, shell=False):
     return result.stdout
 
 
+def chrome_cli_execute(js_file, id, context_dict):
+    # run JS code in given file on browser tab with given ID, passing variables to
+    # replace in JS file via context_dict parameter
+    with open(js_file) as f:
+        js_code = "\n" + f.read()
+
+    for var_name, value in context_dict.items():
+        js_code = js_code.replace(var_name, value)
+
+    return run_shell(f"brave-cli execute '{js_code}' -t {id}")
+
+
 def control_stream_audio(chrome_cli_id, mute=True):
     if mute:
-        mute_str = "true"
+        var_dict = {"MUTE_STREAM": "true"}
     else:
-        mute_str = "false"
-    # TODO: support other browsers chrome-cli supports
-    command = (
-        'brave-cli execute \'Array.from(document.querySelectorAll("video"))'
-        f".forEach(e => e.muted = {mute_str});' -t {chrome_cli_id}"
-    )
-    run_shell(command)
+        var_dict = {"MUTE_STREAM": "false"}
+
+    chrome_cli_execute("javascript/mute.js", chrome_cli_id, var_dict)
+
+
+def control_stream_overlay(chrome_cli_id, show_overlay=True):
+    # TODO: make it work with fullscreen anything
+    if show_overlay:
+        var_dict = {"SHOW_OVERLAY": "true"}
+    else:
+        var_dict = {"SHOW_OVERLAY": "false"}
+
+    chrome_cli_execute("javascript/overlay.js", chrome_cli_id, var_dict)
 
 
 def get_window_video_elements(chrome_cli_id):
@@ -68,13 +86,8 @@ def get_window_video_elements(chrome_cli_id):
     video elements, not iframes via JavaScript. So it's important to have a stream
     be displayed in a video and not an iframe in order to programmatically mute/unmute it.
     """
-    command = (
-        "brave-cli execute '(function(){const e={iframes:[]};"
-        'return e.has_video=document.querySelectorAll("video").length>0,'
-        'e.has_video||(e.iframes=Array.from(document.querySelectorAll("iframe")).map((e=>e.src))),'
-        f"JSON.stringify(e)}}());' -t {chrome_cli_id}"
-    )
-    return json.loads(run_shell(command))
+    result = chrome_cli_execute("javascript/video_elements.js", chrome_cli_id, {})
+    return json.loads(result)
 
 
 def notify(text, title=NOTIFICATION_TITLE):

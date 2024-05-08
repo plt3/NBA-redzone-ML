@@ -12,7 +12,8 @@ from ml_models.crop_screenshots import ImageCropper
 # TODO: deal with this
 # from ml_models.setup_datasets import IMAGE_DIMS
 from utils import (choose_main_window_id, choose_space, control_stream_audio,
-                   get_chrome_cli_ids, get_window_video_elements, get_windows,
+                   control_stream_overlay, get_chrome_cli_ids,
+                   get_window_video_elements, get_windows,
                    let_user_choose_iframe, run_shell, take_screenshot)
 
 IMAGE_DIMS = (200, 320)
@@ -29,11 +30,6 @@ class StreamManager:
         self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"])
         print("skhd process started.")
 
-        self.placeholder_file = "placeholder.jpg"
-        self.placeholder_uri = "file:///" + os.path.join(
-            os.getcwd(), self.placeholder_file
-        )
-        self.placeholder_ids = []
         self.during_commercial = False
 
         self.conv_base = keras.applications.vgg16.VGG16(
@@ -145,13 +141,13 @@ class StreamManager:
 
     def switch_away_from_main(self):
         print("switching away from main stream")
-        # find non-main, non placeholder window that isn't showing a commercial
+        # find non-main window that isn't showing a commercial
         new_id = None
         windows = get_windows(self.space)
         # windows are either all fullscreen or all tiled, so can just check first one
         fullscreen = windows[0]["fullscreen"]
         for win in windows:
-            if win["id"] != self.main_id and win["id"] not in self.placeholder_ids:
+            if win["id"] != self.main_id:
                 _, is_com, _ = self.win_is_commercial(
                     win["id"], False, force=FORCE_COMMERCIAL
                 )
@@ -167,9 +163,11 @@ class StreamManager:
                 self.fullscreen_window(windows, new_id)
             else:
                 control_stream_audio(self.id_dict[self.main_id], mute=True)
+                control_stream_overlay(self.id_dict[self.main_id], show_overlay=True)
         else:
             print("muting")
             control_stream_audio(self.id_dict[self.main_id], mute=True)
+            control_stream_overlay(self.id_dict[self.main_id], show_overlay=True)
             if new_id is not None:
                 # switch to stream showing game
                 print("switching to other frame")
@@ -185,18 +183,18 @@ class StreamManager:
         else:
             control_stream_audio(self.id_dict[self.focused_id], mute=True)
             control_stream_audio(self.id_dict[self.main_id], mute=False)
+            control_stream_overlay(self.id_dict[self.main_id], show_overlay=False)
             self.focused_id = self.main_id
 
     def avoid_main_commercial(self):
-        """Switch to other stream/placeholder for the duration of commercial in main
+        """Switch to other stream for the duration of commercial in main
         stream, then switch back to main stream.
         """
         self.switch_away_from_main()
 
         is_com = True
         while is_com:
-            time.sleep(5)  # TOOD: in practice this might be shorter than normal?
-            # don't double check when already on commercial
+            time.sleep(5)
             _, is_com, _ = self.win_is_commercial(
                 self.main_id, False, force=FORCE_COMMERCIAL
             )

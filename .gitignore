@@ -13,3 +13,4 @@ ml_model_attempts/data/validation
 ml_model_attempts/data/evaluation
 wrongs.txt
 scratch.py
+server_test.py
