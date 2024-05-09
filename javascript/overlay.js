@@ -5,6 +5,7 @@
   // determine whether to show or make overlay disappear
   if (SHOW_OVERLAY) {
     const css_id = "nbaredzone-css";
+    const overlay_p_id = "nbaredzone-overlay-p";
     const prev_css = document.getElementById(css_id);
     const prev_overlay = document.getElementById(overlay_id);
 
@@ -24,13 +25,14 @@
       // make this work with Fullscreen Anything browser extension
       overlay.className = "tc-show";
       //prettier-ignore
-      overlay.innerHTML = "<div class=\"tc-show\"><p class=\"tc-show\">Halftime</p></div>";
+      overlay.innerHTML = `<div class="tc-show"><p id="${overlay_p_id}" class="tc-show">OVERLAY_TEXT</p></div>`;
       document.querySelector("body").appendChild(overlay);
 
       setTimeout(() => {
         document.getElementById(overlay_id).style.height = "100%";
       }, 100);
     } else {
+      document.getElementById(overlay_p_id).textContent = "OVERLAY_TEXT";
       document.getElementById(overlay_id).style.height = "100%";
     }
   } else {

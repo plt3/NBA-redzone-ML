@@ -13,7 +13,8 @@ button {
   color: white;
   padding: 10px 20px;
   font-size: 32px;
-  margin: 20px;
+  margin-top: 20px;
+  width: 100%;
 }
 
 button:hover {
@@ -22,7 +23,7 @@ button:hover {
 }
 
 button:disabled {
-  background-color: #c4c4c4;
+  background-color: #9c9c9c;
 }
 
 #main-container {
@@ -36,6 +37,9 @@ button:disabled {
 
 #button-container {
   margin-top: 15vh;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
 }
 
 #title-text {

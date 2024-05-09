@@ -70,12 +70,10 @@ def control_stream_audio(chrome_cli_id, mute=True):
     chrome_cli_execute("javascript/mute.js", chrome_cli_id, var_dict)
 
 
-def control_stream_overlay(chrome_cli_id, show_overlay=True):
-    # TODO: make it work with fullscreen anything
-    if show_overlay:
-        var_dict = {"SHOW_OVERLAY": "true"}
-    else:
-        var_dict = {"SHOW_OVERLAY": "false"}
+def control_stream_overlay(chrome_cli_id, overlay_text, show_overlay=True):
+    var_dict = {"OVERLAY_TEXT": overlay_text, "SHOW_OVERLAY": "true"}
+    if not show_overlay:
+        var_dict["SHOW_OVERLAY"] = "false"
 
     chrome_cli_execute("javascript/overlay.js", chrome_cli_id, var_dict)
 
