@@ -1,11 +1,9 @@
-import json
 import os
-import subprocess
 import sys
 import time
 from datetime import datetime
 
-from utils import take_screenshot
+from utils import get_windows, strip_win_title, take_screenshot
 
 """
 Take screenshots of windows in given space that are displaying streams at regular interval
@@ -16,50 +14,46 @@ Press ctrl + c to stop
 
 FILE_EXTENSION = "jpg"
 SCREENSHOT_INTERVAL = 60
-DATA_DIRECTORY = 'screenshots'
+DATA_DIRECTORY = "screenshots"
 
 
-def get_window_ids(space):
-    command = f"yabai -m query --windows --space {space}"
-    result = subprocess.run(command.split(), capture_output=True, text=True, check=True)
-    windows = json.loads(result.stdout)
+class ScreenshotTaker:
+    def __init__(self, space, interval=SCREENSHOT_INTERVAL, print_windows=False):
+        self.space = space
+        self.interval = interval
+        self.windows = get_windows(self.space, title=True)
 
-    if len(windows) not in [1, 4]:
-        raise Exception(
-            "Must have 1 or 4 windows open in space. If not 4 streams, open up blank windows to take up space."
-        )
-    else:
-        stream_window_ids = []
-
-        for window in windows:
-            if 'NBA' in window['title']:
-                print(f'Assuming stream in window with title "{window['title']}".')
-                stream_window_ids.append(window['id'])
-            else:
-                stream_response = input(f'Does window "{window['title']}" contain a stream? y/[n]: ')
-                if stream_response == 'y':
-                    print(f'Adding window with title "{window['title']}" to streams list.')
-                    stream_window_ids.append(window['id'])
-
-        return stream_window_ids
-
-
-def main():
-    if len(sys.argv) < 2:
-        print(f"USAGE: python3 {sys.argv[0]} SPACE_NUMBER")
-    else:
-        ids = get_window_ids(sys.argv[1])
+        if print_windows:
+            plural = ""
+            if len(self.windows) > 1:
+                plural = "s"
+            print(f"Taking screenshots of the following window{plural}:")
+            for win in self.windows:
+                print(strip_win_title(win["title"]))
         os.makedirs(DATA_DIRECTORY, exist_ok=True)
-        print(f'Starting to take screenshots in {SCREENSHOT_INTERVAL} seconds. Switch to space {sys.argv[1]} now.')
 
-        while True:
-            time.sleep(SCREENSHOT_INTERVAL)
-            for id in ids:
-                filename = f'{datetime.now().strftime("%y-%m-%d_%H-%M-%S")}_{id}.{FILE_EXTENSION}'
-                file_path = os.path.join(DATA_DIRECTORY, filename)
-                take_screenshot(id, file_path)
-                print(f"Took screenshot {file_path}")
+    def take_screenshots(self):
+        print(
+            f"Collecting screenshots of all windows in space {self.space} to train classifier."
+        )
+
+        try:
+            while True:
+                time.sleep(self.interval)
+                for win in self.windows:
+                    win_id = win["id"]
+                    filename = f'{datetime.now().strftime("%y-%m-%d_%H-%M-%S")}_{win_id}.{FILE_EXTENSION}'
+                    file_path = os.path.join(DATA_DIRECTORY, filename)
+
+                    take_screenshot(win_id, file_path)
+                    print(f"Took screenshot {file_path} classifier training.")
+        except KeyboardInterrupt:
+            print("\nKeyboardInterrupt received, shutting down.")
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print(f"USAGE: python3 {sys.argv[0]} SPACE_NUMBER")
+    else:
+        sc_taker = ScreenshotTaker(sys.argv[1], print_windows=True)
+        sc_taker.take_screenshots()

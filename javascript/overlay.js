@@ -24,7 +24,7 @@
       // make this work with Fullscreen Anything browser extension
       overlay.className = "tc-show";
       //prettier-ignore
-      overlay.innerHTML = "<div class=\"tc-show\"><p class=\"tc-show\">Commercial break</p></div>";
+      overlay.innerHTML = "<div class=\"tc-show\"><p class=\"tc-show\">Halftime</p></div>";
       document.querySelector("body").appendChild(overlay);
 
       setTimeout(() => {

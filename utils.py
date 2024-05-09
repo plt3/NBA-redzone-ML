@@ -94,6 +94,15 @@ def notify(text, title=NOTIFICATION_TITLE):
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
 
 
+def strip_win_title(title):
+    try:
+        end_index = title.index(" - High memory usage")
+        title = title[:end_index]
+    except ValueError:
+        pass
+    return title.removesuffix(" - Audio playing")
+
+
 def take_screenshot(window_id, file_path):
     extension = os.path.splitext(file_path)[1].removeprefix(".")
     command = f"screencapture -oxl {window_id} -t {extension} {file_path}"
@@ -179,7 +188,7 @@ def choose_main_window_id(windows):
     else:
         terminal_menu = TerminalMenu(
             [
-                f"[{i + 1}] {win['title'].removesuffix(' - Audio playing')}"
+                f"[{i + 1}] {strip_win_title(win['title'])}"
                 for i, win in enumerate(windows)
             ],
             title="\nSelect main stream:\n",
@@ -192,7 +201,7 @@ def choose_main_window_id(windows):
         if choice_index is None:
             raise Exception("No main window selected.")
 
-    title = windows[choice_index]["title"].removesuffix(" - Audio playing")
+    title = strip_win_title(windows[choice_index]["title"])
     return windows[choice_index]["id"], title
 
 
@@ -223,10 +232,9 @@ def get_chrome_cli_ids(windows):
     id_dict = {}
 
     for win in windows:
-        stripped_win_title = win["title"].removesuffix(" - Audio playing")
         for tab in tabs["tabs"]:
             # Unsure if this check is robust enough
-            if tab["title"] == stripped_win_title:
+            if tab["title"] == strip_win_title(win["title"]):
                 id_dict[win["id"]] = int(tab["id"])
                 break
         else:

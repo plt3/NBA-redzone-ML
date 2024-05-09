@@ -1,0 +1,39 @@
+html,
+body {
+  height: 100%;
+  font-family: Helvetica;
+  background-color: #18191a;
+  color: #ffffff;
+}
+
+button {
+  background-color: #616161;
+  border: none;
+  border-radius: 20px;
+  color: white;
+  padding: 10px 20px;
+  font-size: 32px;
+  margin: 20px;
+}
+
+button:hover {
+  background-color: #787878;
+  cursor: pointer;
+}
+
+#main-container {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+#button-container {
+  margin-top: 15vh;
+}
+
+#title-text {
+  margin-top: 15vh;
+}

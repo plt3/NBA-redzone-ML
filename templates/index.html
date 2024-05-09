@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ML-RedZone</title>
+    <link
+      href="{{ url_for('static', filename='styles.css') }}"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="main-container">
+      <h1 id="title-text">ML-RedZone Remote</h1>
+      <div id="button-container">
+        <button id="halftime-button" type="button">Start halftime</button>
+      </div>
+    </div>
+    <script
+      src="{{ url_for('static', filename='scripts.js') }}"
+      charset="utf-8"
+    ></script>
+  </body>
+</html>
