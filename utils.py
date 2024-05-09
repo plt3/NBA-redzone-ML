@@ -95,12 +95,14 @@ def notify(text, title=NOTIFICATION_TITLE):
 
 
 def strip_win_title(title):
+    # remove various suffixes at end of window title that make window title returned
+    # by yabai differ from the one returned by chrome-cli
     try:
         end_index = title.index(" - High memory usage")
         title = title[:end_index]
     except ValueError:
         pass
-    return title.removesuffix(" - Audio playing")
+    return title.replace(" - Audio playing", "").replace(" - Brave", "")
 
 
 def take_screenshot(window_id, file_path):

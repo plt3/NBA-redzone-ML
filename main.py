@@ -14,8 +14,11 @@ from utils import (choose_main_window_id, choose_space, control_stream_audio,
                    get_window_video_elements, get_windows,
                    let_user_choose_iframe, run_shell, strip_win_title)
 
-FORCE_COMMERCIAL = None
+FORCE_COMMERCIAL = True
 MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
+# when making request to start halftime, stop classification for 13 minutes
+# HALFTIME_DURATION = 13 * 60
+HALFTIME_DURATION = 20
 
 
 class StreamManager:
@@ -23,7 +26,9 @@ class StreamManager:
 
     def __init__(self, space=None, server_port=80, gather_data=False):
         self.classifier = Classifier(MODEL_FILE_PATH)
-        self.during_commercial = False
+        self.is_halftime = False
+        self.overlay_displayed = False
+        self.lock = Lock()
 
         if space is None:
             self.space = choose_space()
@@ -42,14 +47,12 @@ class StreamManager:
         self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"])
         print("skhd process started.")
 
-        # TODO: remove
-        self.overlay_displayed = False
         self._start_flask_server(server_port)
 
         # save screenshots for training classifier later
         if gather_data:
             self.sc_taker = ScreenshotTaker(self.space)
-            Thread(target=lambda: self.sc_taker.take_screenshots(), daemon=True).start()
+            Thread(target=self.sc_taker.take_screenshots, daemon=True).start()
 
         print(
             "\nSetup done. Make sure space with streams is visible,"
@@ -71,7 +74,7 @@ class StreamManager:
 
         self.app = Flask(__name__)
         self.app.route("/")(self.flask_main_route)
-        self.app.route("/halftime")(self.handle_halftime)
+        self.app.route("/halftime", methods=["POST"])(self.handle_halftime_request)
         # run Flask app in background thread
         host = "0.0.0.0"
         Thread(target=lambda: self.app.run(host=host, port=port), daemon=True).start()
@@ -79,11 +82,11 @@ class StreamManager:
         ip = run_shell(
             "ifconfig -l | xargs -n1 ipconfig getifaddr", shell=True, check=False
         ).strip()
-        # copy IP address to clipboard to easily paste on iPhone with clibpoard sync
-        run_shell(f'printf "{ip}" | pbcopy', shell=True)
         port_str = ""
         if port != 80:
             port_str = f":{port}"
+        # copy IP address to clipboard to easily paste on iPhone with clibpoard sync
+        run_shell(f'printf "http://{ip}{port_str}" | pbcopy', shell=True)
 
         message = f"HTTP server listening at http://{host}{port_str} for this device,"
         message += f" or http://{ip}{port_str} for other devices on this network.\n"
@@ -97,13 +100,28 @@ class StreamManager:
         # switching focus
         return render_template("index.html")
 
-    def handle_halftime(self):
-        print("halftime request received")
-        # TODO: should take query parameter to start/end halftime
-        self.overlay_displayed = not self.overlay_displayed
-        control_stream_overlay(self.id_dict[self.main_id], self.overlay_displayed)
+    def handle_halftime_request(self):
+        with self.lock:
+            self.overlay_displayed = not self.overlay_displayed
+            display_overlay = self.overlay_displayed
 
-        return "done"
+            start_halftime = not self.is_halftime
+
+        if display_overlay:
+            return_obj = {"next_action": "Hide overlay"}
+        else:
+            return_obj = {"next_action": "Show overlay"}
+
+        if start_halftime:
+            # TODO: return a timeout for frontend button to disable after 13 mins?
+            Thread(target=lambda: self.avoid_main_commercial(True), daemon=True).start()
+            return_obj["timeout"] = HALFTIME_DURATION
+        else:
+            print("Controlling overlay and audio")
+            control_stream_overlay(self.id_dict[self.main_id], display_overlay)
+            control_stream_audio(self.id_dict[self.main_id], mute=display_overlay)
+
+        return return_obj
 
     def handle_iframes(self, windows):
         """Can't mute/unmute a page with JavaScript if its video elements are playing
@@ -143,14 +161,23 @@ class StreamManager:
         is_fullscreen = None
 
         if force is not None:
+            if force:
+                print("forcing commercial")
+            else:
+                print("forcing NBA")
             is_commercial = force  # for testing
         else:
             is_commercial = self.classifier.classify(win_id, double_check)
 
         return win_id, is_commercial, is_fullscreen
 
-    def switch_away_from_main(self):
+    def switch_away_from_main(self, overlay=False):
         print("switching away from main stream")
+        if overlay:
+            print("displaying overlay")
+            control_stream_overlay(self.id_dict[self.main_id], True)
+            with self.lock:
+                self.overlay_displayed = True
         # find non-main window that isn't showing a commercial
         new_id = None
         windows = get_windows(self.space)
@@ -181,7 +208,7 @@ class StreamManager:
                 print("switching to other frame")
                 control_stream_audio(self.id_dict[new_id], mute=False)
 
-    def return_to_main(self):
+    def return_to_main(self, overlay=False):
         print("returning to main stream")
         windows = get_windows(self.space)
         fullscreen = windows[0]["fullscreen"]
@@ -193,22 +220,48 @@ class StreamManager:
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id
 
-    def avoid_main_commercial(self):
+        if overlay:
+            print("hiding overlay")
+            control_stream_overlay(self.id_dict[self.main_id], False)
+            with self.lock:
+                self.overlay_displayed = False
+
+    def avoid_main_commercial(self, halftime=False):
         """Switch to other stream for the duration of commercial in main
-        stream, then switch back to main stream.
+        stream, then switch back to main stream. If halftime is True, wait instead
+        for halftime duration
         """
-        self.switch_away_from_main()
-
-        is_com = True
-        while is_com:
-            time.sleep(5)
-            _, is_com, _ = self.win_is_commercial(
+        if halftime:
+            with self.lock:
+                self.is_halftime = True
+            halftime_end = time.time() + HALFTIME_DURATION
+            end_func = lambda: time.time() < halftime_end
+        else:
+            end_func = lambda: self.win_is_commercial(
                 self.main_id, False, force=FORCE_COMMERCIAL
-            )
+            )[1]
 
-        self.return_to_main()
+        self.switch_away_from_main(overlay=halftime)
+
+        halftime_started_during = False
+
+        while end_func():
+            time.sleep(5)
+            with self.lock:
+                if not halftime and self.is_halftime:
+                    print("Stopping commercial checks due to halftime starting.")
+                    halftime_started_during = True
+                    break
+
+        if not halftime_started_during:
+            self.return_to_main(overlay=halftime)
+
+        if halftime:
+            with self.lock:
+                self.is_halftime = False
 
     def handle_if_commercial(self):
+        print("checking if commercial")
         _, commercial, _ = self.win_is_commercial(self.main_id, force=FORCE_COMMERCIAL)
         if commercial:
             self.avoid_main_commercial()
@@ -217,7 +270,11 @@ class StreamManager:
         try:
             while True:
                 time.sleep(5)
-                self.handle_if_commercial()
+                with self.lock:
+                    is_halftime = self.is_halftime
+                # don't do any checking if during halftime
+                if not is_halftime:
+                    self.handle_if_commercial()
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt received, shutting down.")
 

@@ -21,6 +21,10 @@ button:hover {
   cursor: pointer;
 }
 
+button:disabled {
+  background-color: #c4c4c4;
+}
+
 #main-container {
   height: 100%;
   width: 100%;
