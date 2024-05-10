@@ -46,7 +46,7 @@ class ScreenshotTaker:
                     file_path = os.path.join(DATA_DIRECTORY, filename)
 
                     take_screenshot(win_id, file_path)
-                    print(f"Took screenshot {file_path} classifier training.")
+                    print(f"Took screenshot {file_path} for classifier training.")
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt received, shutting down.")
 

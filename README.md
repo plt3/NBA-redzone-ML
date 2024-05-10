@@ -13,3 +13,9 @@
 
 - `predict.py`: run the classifier on evaluation data, and print out false positives/negatives
 - `wrongs.py`: display images the classifier wrongly classified. Copy and paste output from `predict.py` into wrongs.txt, then run `wrongs.py` to see all mistakes it made
+
+## TODO:
+
+- stop using overlay at all?
+  - or at least don't try to collect training screenshots when overlay is on
+  - use iTerm transparency instead? or some other way to have transparency

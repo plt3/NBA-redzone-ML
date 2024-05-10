@@ -10,13 +10,12 @@ from flask import Flask, render_template, request
 from classifier import Classifier
 from take_screenshots import ScreenshotTaker
 from utils import (choose_main_window_id, choose_space, control_stream_audio,
-                   control_stream_overlay, get_chrome_cli_ids,
-                   get_window_video_elements, get_windows,
+                   get_chrome_cli_ids, get_window_video_elements, get_windows,
                    let_user_choose_iframe, run_shell, strip_win_title)
 
 FORCE_COMMERCIAL = None
 MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
-# when making request to start halftime, stop classification for 13 minutes
+# when making request to start halftime, stop classification for 14 minutes
 HALFTIME_DURATION = 14 * 60
 
 
@@ -25,10 +24,9 @@ class StreamManager:
 
     def __init__(self, space=None, server_port=80, gather_data=False):
         self.classifier = Classifier(MODEL_FILE_PATH)
-        self.is_on_break = False
-        self.on_timed_break = False
-        self.overlay_displayed = False
-        self.overlay_text = None
+        # keys: window IDs, values: True to force that window as showing a commercial,
+        # False to force it as showing NBA
+        self.force_windows = {}
         self.lock = Lock()
 
         if space is None:
@@ -38,6 +36,10 @@ class StreamManager:
 
         windows = get_windows(self.space, title=True)
         self.id_dict = get_chrome_cli_ids(windows)
+        self.was_commercial = {}
+        # initialize all windows as not showing commercials
+        for win_id in self.id_dict:
+            self.was_commercial[win_id] = False
 
         self.main_id, title = choose_main_window_id(windows)
         print(f'Selected main window with title "{title}" in space {self.space}.')
@@ -52,6 +54,7 @@ class StreamManager:
 
         # save screenshots for training classifier later
         if gather_data:
+            # TODO: should stop taking screenshots when overlay is on
             self.sc_taker = ScreenshotTaker(self.space)
             Thread(target=self.sc_taker.take_screenshots, daemon=True).start()
 
@@ -64,6 +67,7 @@ class StreamManager:
         self.focused_id = self.main_id
 
     def __del__(self):
+        self.classifier.__del__()
         self.skhd_process.terminate()
         print("skhd process terminated.")
 
@@ -107,6 +111,7 @@ class StreamManager:
         return render_template("index.html")
 
     def handle_timed_break_request(self):
+        """Start/stop timed commercial break in main window"""
         print(request.json)
         if request.json is None:
             return {"message": "must include POST data"}, 400
@@ -116,30 +121,40 @@ class StreamManager:
                 return {"message": "already on break"}, 400
 
         if request.json["halftime"]:
-            overlay_text = "Halftime"
             duration = HALFTIME_DURATION
         else:
             duration = request.json["duration"]
-            overlay_text = f"Commercial break ({duration} sec)"
 
-        Thread(
-            target=lambda: self.avoid_main_commercial(duration, overlay_text),
-            daemon=True,
-        ).start()
+        Thread(target=self.avoid_main_commercial, daemon=True).start()
 
         return {"timeout": duration}
 
     def handle_untimed_break_request(self):
-        overlay_text = "Commercial break"
-
+        """Start/stop untimed commercial break in main window"""
         with self.lock:
-            overlay_displayed = self.overlay_displayed
+            # force commercial if no previous force or if previous force was NBA
+            if not self.force_windows.get(self.main_id, False):
+                force_commercial = True
+                self.force_windows[self.main_id] = True
 
-        if not overlay_displayed:
-            self.switch_away_from_main(overlay_text)
+                if self.was_commercial[self.main_id]:
+                    # set was_commercial to False, so that when checks resume, they will
+                    # swich away from main if commercial again
+                    self.was_commercial[self.main_id] = False
+                    skip_switch_away = True
+                else:
+                    skip_switch_away = False
+            else:
+                force_commercial = False
+                del self.force_windows[self.main_id]
+                skip_switch_away = False
+
+        if force_commercial:
+            if not skip_switch_away:
+                self.switch_away_from_main()
             return {"next_action": "Stop untimed break"}
         else:
-            self.return_to_main(overlay_text)
+            self.return_to_main()
             return {"next_action": "Start untimed break"}
 
     def handle_iframes(self, windows):
@@ -177,29 +192,18 @@ class StreamManager:
             )
 
     def win_is_commercial(self, win_id, double_check=True, force=None):
-        is_fullscreen = None
-
         if force is not None:
-            if force:
-                print("forcing commercial")
-            else:
-                print("forcing NBA")
-            is_commercial = force  # for testing
+            is_commercial = force
         else:
             is_commercial = self.classifier.classify(win_id, double_check)
 
-        return win_id, is_commercial, is_fullscreen
+        with self.lock:
+            self.was_commercial[win_id] = is_commercial
 
-    def switch_away_from_main(self, overlay_text=None):
+        return is_commercial
+
+    def switch_away_from_main(self):
         print("switching away from main stream")
-        if overlay_text is not None:
-            with self.lock:
-                self.is_on_break = True
-                self.overlay_displayed = True
-                if self.overlay_text is not None:
-                    overlay_text = self.overlay_text
-            print("displaying overlay")
-            control_stream_overlay(self.id_dict[self.main_id], overlay_text, True)
         # find non-main window that isn't showing a commercial
         new_id = None
         windows = get_windows(self.space)
@@ -207,10 +211,7 @@ class StreamManager:
         fullscreen = windows[0]["fullscreen"]
         for win in windows:
             if win["id"] != self.main_id:
-                _, is_com, _ = self.win_is_commercial(
-                    win["id"], False, force=FORCE_COMMERCIAL
-                )
-                if not is_com:
+                if not self.win_is_commercial(win["id"], False):
                     new_id = win["id"]
                     self.focused_id = new_id
                     break
@@ -230,7 +231,7 @@ class StreamManager:
                 print("switching to other frame")
                 control_stream_audio(self.id_dict[new_id], mute=False)
 
-    def return_to_main(self, overlay_text=None):
+    def return_to_main(self):
         print("returning to main stream")
         windows = get_windows(self.space)
         fullscreen = windows[0]["fullscreen"]
@@ -242,69 +243,57 @@ class StreamManager:
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id
 
-        if overlay_text is not None:
-            with self.lock:
-                if self.overlay_text is not None:
-                    overlay_text = self.overlay_text
-                self.overlay_displayed = False
-                if not self.on_timed_break:
-                    self.is_on_break = False
-            print("hiding overlay")
-            control_stream_overlay(self.id_dict[self.main_id], overlay_text, False)
+    # def avoid_main_commercial(self):
+    #     """Switch to other stream for the duration of commercial in main
+    #     stream, then switch back to main stream.
+    #     """
+    #     self.switch_away_from_main()
+    #
+    #     # TODO: could do away with this whole waiting? And instead just set
+    #     # self.is_commercial and have the mainloop check that to switch away/back
+    #     not_end = True
+    #     while not_end:
+    #         time.sleep(5)
+    #         with self.lock:
+    #             if self.force_windows.get(self.main_id, False):
+    #                 print("Stopping commercial checks due to forced break.")
+    #                 return
+    #         not_end = self.win_is_commercial(self.main_id, False)
+    #
+    #     self.return_to_main()
 
-    def avoid_main_commercial(self, duration=None, overlay_text=None):
-        """Switch to other stream for the duration of commercial in main
-        stream, then switch back to main stream. If duration specified, wait instead
-        for duration seconds
-        """
-        if duration is not None:
-            break_end = time.time() + duration
-            end_func = lambda: time.time() < break_end
-            with self.lock:
-                self.on_timed_break = True
-                self.overlay_text = overlay_text
-        else:
-            end_func = lambda: self.win_is_commercial(
-                self.main_id, False, force=FORCE_COMMERCIAL
-            )[1]
+    def handle_if_main_commercial(self):
+        print("running handle_if_main_commercial")
+        with self.lock:
+            was_commercial = self.was_commercial[self.main_id]
+            is_forced = self.force_windows.get(self.main_id, None)
 
-        self.switch_away_from_main(overlay_text=overlay_text)
-
-        while end_func():
-            time.sleep(5)
-            with self.lock:
-                if duration is None and self.is_on_break:
-                    print("Stopping commercial checks due to forced break.")
-                    return
-
-        if duration is not None:
-            with self.lock:
-                self.on_timed_break = False
-                self.overlay_text = None
-
-        self.return_to_main(overlay_text=overlay_text)
-
-    def handle_if_commercial(self):
-        print("checking if commercial")
-        _, commercial, _ = self.win_is_commercial(self.main_id, force=FORCE_COMMERCIAL)
-        if commercial:
-            self.avoid_main_commercial()
+        # only check if neither forcing commercial nor NBA
+        if is_forced is None:
+            print("checking if commercial")
+            is_commercial = self.win_is_commercial(
+                self.main_id, double_check=not was_commercial
+            )
+            if not was_commercial and is_commercial:
+                self.switch_away_from_main()
+            elif was_commercial and not is_commercial:
+                self.return_to_main()
 
     def mainloop(self):
         try:
             while True:
                 time.sleep(5)
-                with self.lock:
-                    is_break = self.is_on_break
-                # don't do any checking if during break forced by HTTP request
-                if not is_break:
-                    self.handle_if_commercial()
+                self.handle_if_main_commercial()
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt received, shutting down.")
+            # destructor doesn't run when SIGINT received? So call it explicitly
+            self.__del__()
 
 
 def main():
-    if len(sys.argv) >= 2:
+    if len(sys.argv) >= 3:
+        manager = StreamManager(sys.argv[1], gather_data=sys.argv[2].lower() == "true")
+    elif len(sys.argv) == 2:
         manager = StreamManager(sys.argv[1])
     else:
         manager = StreamManager()
