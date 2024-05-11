@@ -9,9 +9,11 @@ from flask import Flask, render_template, request
 
 from classifier import Classifier
 from take_screenshots import ScreenshotTaker
-from utils import (choose_main_window_id, choose_space, control_stream_audio,
-                   get_chrome_cli_ids, get_window_video_elements, get_windows,
-                   let_user_choose_iframe, run_shell, strip_win_title)
+from utils import (choose_main_window_id, choose_space, close_commercial_cover,
+                   control_stream_audio, cover_window, get_chrome_cli_ids,
+                   get_window_video_elements, get_windows,
+                   let_user_choose_iframe, open_commercial_cover, run_shell,
+                   strip_win_title)
 
 FORCE_COMMERCIAL = None
 MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
@@ -22,12 +24,15 @@ HALFTIME_DURATION = 14 * 60
 class StreamManager:
     start_delay = 5
 
-    def __init__(self, space=None, server_port=80, gather_data=False):
+    def __init__(
+        self, space=None, server_port=80, gather_data=False, cover_commercials=True
+    ):
         self.classifier = Classifier(MODEL_FILE_PATH)
         # keys: window IDs, values: True to force that window as showing a commercial,
         # False to force it as showing NBA
         self.force_windows = {}
         self.lock = Lock()
+        self.cover_commercials = cover_commercials
 
         if space is None:
             self.space = choose_space()
@@ -45,6 +50,11 @@ class StreamManager:
         print(f'Selected main window with title "{title}" in space {self.space}.')
 
         self.handle_iframes(windows)
+
+        if self.cover_commercials:
+            self.cover_id = open_commercial_cover(self.space, windows)
+        else:
+            self.cover_id = None
 
         # run skhd_process in background for hotkeys to work
         self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"])
@@ -68,6 +78,10 @@ class StreamManager:
 
     def __del__(self):
         self.classifier.__del__()
+
+        close_commercial_cover(self.cover_id)
+        print("Commercial cover window closed.")
+
         self.skhd_process.terminate()
         print("skhd process terminated.")
 
@@ -226,6 +240,8 @@ class StreamManager:
         else:
             print("muting")
             control_stream_audio(self.id_dict[self.main_id], mute=True)
+            if self.cover_commercials:
+                cover_window(self.main_id, self.cover_id)
             if new_id is not None:
                 # switch to stream showing game
                 print("switching to other frame")
@@ -237,8 +253,10 @@ class StreamManager:
         fullscreen = windows[0]["fullscreen"]
 
         if fullscreen:
+            print("Covering window")
             self.fullscreen_window(windows, self.main_id)
         else:
+            run_shell(f"yabai -m window {self.main_id} --focus")
             control_stream_audio(self.id_dict[self.focused_id], mute=True)
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id

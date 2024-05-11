@@ -6,6 +6,7 @@ import time
 from simple_term_menu import TerminalMenu
 
 NOTIFICATION_TITLE = "NBARedZone"
+ITERM_PROFILE = "ML-RedZone Placeholder"
 
 
 def run_shell(command, check=True, shell=False):
@@ -90,6 +91,37 @@ def get_window_video_elements(chrome_cli_id):
 
 def notify(text, title=NOTIFICATION_TITLE):
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
+
+
+# TODO: split some of these into separate classes/files? Like chrome-cli or cover stuff
+def open_commercial_cover(space, windows):
+    res_text = run_shell(
+        f'osascript -e \'tell application "iTerm" to create window with profile "{ITERM_PROFILE}"\''
+    )
+    win_id = res_text.split()[-1]
+    # TODO: condense in one yabai command? Seems like you can chain them
+    run_shell(f"yabai -m window {win_id} --toggle float")
+    run_shell(f"yabai -m window {win_id} --space {space}")
+
+    # focus all other windows in space to put cover behind them all
+    for win in windows:
+        run_shell(f"yabai -m window {win['id']} --focus")
+
+    return win_id
+
+
+def close_commercial_cover(win_id):
+    run_shell(f"yabai -m window {win_id} --close")
+
+
+def cover_window(win_id, cover_id):
+    # TODO: probably pass this as an argument? Don't run query here
+    win_info = json.loads(run_shell(f"yabai -m query --windows --window {win_id}"))
+    coords = win_info["frame"]
+
+    run_shell(f"yabai -m window {cover_id} --move abs:{coords['x']}:{coords['y']}")
+    run_shell(f"yabai -m window {cover_id} --resize abs:{coords['w']}:{coords['h']}")
+    run_shell(f"yabai -m window {cover_id} --focus")
 
 
 def strip_win_title(title):
@@ -234,7 +266,10 @@ def get_chrome_cli_ids(windows):
     for win in windows:
         for tab in tabs["tabs"]:
             # Unsure if this check is robust enough
-            if tab["title"] == strip_win_title(win["title"]):
+            # if tab["title"] == strip_win_title(win["title"]):
+            if tab["title"] == strip_win_title(win["title"]) or (
+                tab["title"] == "" and strip_win_title(win["title"]).endswith("mp4")
+            ):
                 id_dict[win["id"]] = int(tab["id"])
                 break
         else:
