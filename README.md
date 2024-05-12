@@ -2,6 +2,16 @@
 
 > switch to a different NBA game during commercial breaks using a machine learning image classifier
 
+## Requirements:
+
+- macOS
+- Brave Browser
+- yabai
+- skhd
+- chrome-cli
+- iTerm2
+- Python
+
 ## Scripts:
 
 ### Gathering data for ML classifier:
@@ -19,3 +29,5 @@
 - stop using overlay at all?
   - or at least don't try to collect training screenshots when overlay is on
   - use iTerm transparency instead? or some other way to have transparency
+- turn off mouse_follows_focus in yabai at start, and turn it back on after if needed
+  - or just bite the bullet and use scripting addition so I can raise and lower?

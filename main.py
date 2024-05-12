@@ -5,7 +5,7 @@ import time
 from threading import Lock, Thread
 
 import flask.cli
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 
 from classifier import Classifier
 from take_screenshots import ScreenshotTaker
@@ -17,15 +17,19 @@ from utils import (choose_main_window_id, choose_space, close_commercial_cover,
 
 FORCE_COMMERCIAL = None
 MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
+DEFAULT_UPDATE_RATE = 3
 # when making request to start halftime, stop classification for 14 minutes
-HALFTIME_DURATION = 14 * 60
+HALFTIME_DURATION = 10
 
 
 class StreamManager:
-    start_delay = 5
-
     def __init__(
-        self, space=None, server_port=80, gather_data=False, cover_commercials=True
+        self,
+        space=None,
+        server_port=80,
+        gather_data=False,
+        cover_commercials=True,
+        update_rate=DEFAULT_UPDATE_RATE,
     ):
         self.classifier = Classifier(MODEL_FILE_PATH)
         # keys: window IDs, values: True to force that window as showing a commercial,
@@ -33,6 +37,8 @@ class StreamManager:
         self.force_windows = {}
         self.lock = Lock()
         self.cover_commercials = cover_commercials
+        self.update_rate = update_rate
+        self.during_halftime = False
 
         if space is None:
             self.space = choose_space()
@@ -51,6 +57,13 @@ class StreamManager:
 
         self.handle_iframes(windows)
 
+        # turn off yabai mouse_follows_focus so that focusing cover window doesn't move
+        # mouse
+        self.mouse_follows_focus = run_shell("yabai -m config mouse_follows_focus")
+        if self.mouse_follows_focus != "off":
+            run_shell("yabai -m config mouse_follows_focus off")
+            print("Switched mouse_follows_focus off.")
+
         if self.cover_commercials:
             self.cover_id = open_commercial_cover(self.space, windows)
         else:
@@ -64,8 +77,11 @@ class StreamManager:
 
         # save screenshots for training classifier later
         if gather_data:
-            # TODO: should stop taking screenshots when overlay is on
-            self.sc_taker = ScreenshotTaker(self.space)
+            if self.cover_id is None:
+                ignore_ids = []
+            else:
+                ignore_ids = [self.cover_id]
+            self.sc_taker = ScreenshotTaker(self.space, ignore_ids=ignore_ids)
             Thread(target=self.sc_taker.take_screenshots, daemon=True).start()
 
         print(
@@ -85,6 +101,10 @@ class StreamManager:
         self.skhd_process.terminate()
         print("skhd process terminated.")
 
+        if self.mouse_follows_focus != "off":
+            run_shell(f"yabai -m config mouse_follows_focus {self.mouse_follows_focus}")
+            print("Switched mouse_follows_focus back on.")
+
     def _start_flask_server(self, port):
         # suppress Flask output
         flask.cli.show_server_banner = lambda *_: None
@@ -93,11 +113,9 @@ class StreamManager:
 
         self.app = Flask(__name__)
         self.app.route("/")(self.flask_main_route)
-        self.app.route("/timed-break", methods=["POST"])(
-            self.handle_timed_break_request
-        )
-        self.app.route("/untimed-break", methods=["POST"])(
-            self.handle_untimed_break_request
+        self.app.route("/halftime", methods=["POST"])(self.handle_halftime_request)
+        self.app.route("/force-commercial", methods=["POST"])(
+            self.handle_force_commercial_request
         )
         # run Flask app in background thread
         host = "0.0.0.0"
@@ -124,28 +142,21 @@ class StreamManager:
         # switching focus
         return render_template("index.html")
 
-    def handle_timed_break_request(self):
-        """Start/stop timed commercial break in main window"""
-        print(request.json)
-        if request.json is None:
-            return {"message": "must include POST data"}, 400
-
+    def handle_halftime_request(self):
+        """Start/stop halftime break in main window"""
         with self.lock:
-            if self.is_on_break:
-                return {"message": "already on break"}, 400
+            if self.during_halftime:
+                return {"message": "already during halftime"}, 400
 
-        if request.json["halftime"]:
-            duration = HALFTIME_DURATION
-        else:
-            duration = request.json["duration"]
+        Thread(target=self.halftime, daemon=True).start()
 
-        Thread(target=self.avoid_main_commercial, daemon=True).start()
+        return {"timeout": HALFTIME_DURATION}
 
-        return {"timeout": duration}
-
-    def handle_untimed_break_request(self):
+    def handle_force_commercial_request(self):
         """Start/stop untimed commercial break in main window"""
         with self.lock:
+            if self.during_halftime:
+                return {"message": "cannot force commercial during halftime"}, 400
             # force commercial if no previous force or if previous force was NBA
             if not self.force_windows.get(self.main_id, False):
                 force_commercial = True
@@ -170,6 +181,42 @@ class StreamManager:
         else:
             self.return_to_main()
             return {"next_action": "Start untimed break"}
+
+    def handle_force_nba_request(self):
+        # TODO: force NBA until turned off (also maybe rename to
+        # force_NBA/force_commercial?)
+        pass
+
+    def halftime(self):
+        """Switch to other stream for the duration of halftime in main
+        stream, then switch back to main stream.
+        """
+        with self.lock:
+            self.during_halftime = True
+
+            if self.was_commercial[self.main_id]:
+                self.was_commercial[self.main_id] = False
+                skip_switch_away = True
+            else:
+                skip_switch_away = False
+
+            # skip switching away if commercial already forced by
+            # handle_force_commercial_request
+            if self.force_windows.get(self.main_id, False):
+                skip_switch_away = True
+            else:
+                self.force_windows[self.main_id] = True
+
+        if not skip_switch_away:
+            self.switch_away_from_main()
+
+        time.sleep(HALFTIME_DURATION)
+
+        self.return_to_main()
+
+        with self.lock:
+            del self.force_windows[self.main_id]
+            self.during_halftime = False
 
     def handle_iframes(self, windows):
         """Can't mute/unmute a page with JavaScript if its video elements are playing
@@ -224,7 +271,7 @@ class StreamManager:
         # windows are either all fullscreen or all tiled, so can just check first one
         fullscreen = windows[0]["fullscreen"]
         for win in windows:
-            if win["id"] != self.main_id:
+            if win["id"] != self.main_id and win["id"] != self.cover_id:
                 if not self.win_is_commercial(win["id"], False):
                     new_id = win["id"]
                     self.focused_id = new_id
@@ -261,25 +308,6 @@ class StreamManager:
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id
 
-    # def avoid_main_commercial(self):
-    #     """Switch to other stream for the duration of commercial in main
-    #     stream, then switch back to main stream.
-    #     """
-    #     self.switch_away_from_main()
-    #
-    #     # TODO: could do away with this whole waiting? And instead just set
-    #     # self.is_commercial and have the mainloop check that to switch away/back
-    #     not_end = True
-    #     while not_end:
-    #         time.sleep(5)
-    #         with self.lock:
-    #             if self.force_windows.get(self.main_id, False):
-    #                 print("Stopping commercial checks due to forced break.")
-    #                 return
-    #         not_end = self.win_is_commercial(self.main_id, False)
-    #
-    #     self.return_to_main()
-
     def handle_if_main_commercial(self):
         print("running handle_if_main_commercial")
         with self.lock:
@@ -300,7 +328,7 @@ class StreamManager:
     def mainloop(self):
         try:
             while True:
-                time.sleep(5)
+                time.sleep(self.update_rate)
                 self.handle_if_main_commercial()
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt received, shutting down.")

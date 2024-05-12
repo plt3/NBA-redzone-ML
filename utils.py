@@ -98,7 +98,7 @@ def open_commercial_cover(space, windows):
     res_text = run_shell(
         f'osascript -e \'tell application "iTerm" to create window with profile "{ITERM_PROFILE}"\''
     )
-    win_id = res_text.split()[-1]
+    win_id = int(res_text.split()[-1])
     # TODO: condense in one yabai command? Seems like you can chain them
     run_shell(f"yabai -m window {win_id} --toggle float")
     run_shell(f"yabai -m window {win_id} --space {space}")

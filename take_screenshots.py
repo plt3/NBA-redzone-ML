@@ -18,10 +18,15 @@ DATA_DIRECTORY = "screenshots"
 
 
 class ScreenshotTaker:
-    def __init__(self, space, interval=SCREENSHOT_INTERVAL, print_windows=False):
+    def __init__(
+        self, space, interval=SCREENSHOT_INTERVAL, print_windows=False, ignore_ids=[]
+    ):
         self.space = space
         self.interval = interval
-        self.windows = get_windows(self.space, title=True)
+        self.windows = []
+        for win in get_windows(self.space, title=True):
+            if win["id"] not in ignore_ids:
+                self.windows.append(win)
 
         if print_windows:
             plural = ""

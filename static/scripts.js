@@ -1,5 +1,7 @@
 const DEFAULT_BREAK_DURATION = 30;
 
+// TODO: update API routes/calls
+
 async function timed_break(element, halftime = true, duration = 0) {
   const response = await fetch("/timed-break", {
     method: "POST",
