@@ -19,7 +19,7 @@ FORCE_COMMERCIAL = None
 MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
 DEFAULT_UPDATE_RATE = 3
 # when making request to start halftime, stop classification for 14 minutes
-HALFTIME_DURATION = 10
+HALFTIME_DURATION = 14 * 60
 
 
 class StreamManager:
@@ -47,13 +47,17 @@ class StreamManager:
 
         windows = get_windows(self.space, title=True)
         self.id_dict = get_chrome_cli_ids(windows)
-        self.was_commercial = {}
-        # initialize all windows as not showing commercials
-        for win_id in self.id_dict:
-            self.was_commercial[win_id] = False
 
         self.main_id, title = choose_main_window_id(windows)
         print(f'Selected main window with title "{title}" in space {self.space}.')
+
+        self.was_commercial = {}
+        # initialize all windows as not showing commercials
+        for win_id, chrome_cli_id in self.id_dict.items():
+            self.was_commercial[win_id] = False
+            # mute all non-main windows
+            if win_id != self.main_id:
+                control_stream_audio(chrome_cli_id, mute=True)
 
         self.handle_iframes(windows)
 
@@ -117,6 +121,7 @@ class StreamManager:
         self.app.route("/force-commercial", methods=["POST"])(
             self.handle_force_commercial_request
         )
+        self.app.route("/force-nba", methods=["POST"])(self.handle_force_nba_request)
         # run Flask app in background thread
         host = "0.0.0.0"
         Thread(target=lambda: self.app.run(host=host, port=port), daemon=True).start()
@@ -148,7 +153,7 @@ class StreamManager:
             if self.during_halftime:
                 return {"message": "already during halftime"}, 400
 
-        Thread(target=self.halftime, daemon=True).start()
+        Thread(target=self.force_halftime, daemon=True).start()
 
         return {"timeout": HALFTIME_DURATION}
 
@@ -177,17 +182,49 @@ class StreamManager:
         if force_commercial:
             if not skip_switch_away:
                 self.switch_away_from_main()
-            return {"next_action": "Stop untimed break"}
+            return {"next_action": "Stop forcing commercial"}
         else:
             self.return_to_main()
-            return {"next_action": "Start untimed break"}
+            return {"next_action": "Start forcing commercial"}
 
     def handle_force_nba_request(self):
-        # TODO: force NBA until turned off (also maybe rename to
-        # force_NBA/force_commercial?)
-        pass
+        """Force/stop forcing showing game in main window"""
+        with self.lock:
+            # force NBA if no previous force or if previous force was commercial
+            if self.force_windows.get(self.main_id, True):
+                if self.force_windows.get(self.main_id, None) is None:
+                    return_to_main = self.was_commercial[self.main_id]
+                else:
+                    # return_to_main = True if previous force was commercial, bc
+                    # handle_force_commercial_request sets was_commercial to False
+                    return_to_main = True
+                self.force_windows[self.main_id] = False
+                self.was_commercial[self.main_id] = False
+                force_nba = True
+                switch_back_to_halftime = False
+            else:
+                # go back to forced commercial if stopping NBA force while halftime is
+                # still ongoing
+                if self.during_halftime:
+                    self.force_windows[self.main_id] = True
+                    switch_back_to_halftime = True
+                else:
+                    # delete force if previous force was NBA (i.e. toggle)
+                    del self.force_windows[self.main_id]
+                    switch_back_to_halftime = False
+                return_to_main = False
+                force_nba = False
 
-    def halftime(self):
+        if force_nba:
+            if return_to_main:
+                self.return_to_main()
+            return {"next_action": "Stop forcing NBA"}
+        else:
+            if switch_back_to_halftime:
+                self.switch_away_from_main()
+            return {"next_action": "Start forcing NBA"}
+
+    def force_halftime(self):
         """Switch to other stream for the duration of halftime in main
         stream, then switch back to main stream.
         """
@@ -212,11 +249,15 @@ class StreamManager:
 
         time.sleep(HALFTIME_DURATION)
 
-        self.return_to_main()
-
         with self.lock:
-            del self.force_windows[self.main_id]
+            return_to_main = self.force_windows.get(self.main_id, True)
+            # don't delete force_window if force got changed to NBA during halftime
+            if return_to_main:
+                del self.force_windows[self.main_id]
             self.during_halftime = False
+
+        if return_to_main:
+            self.return_to_main()
 
     def handle_iframes(self, windows):
         """Can't mute/unmute a page with JavaScript if its video elements are playing
@@ -304,7 +345,8 @@ class StreamManager:
             self.fullscreen_window(windows, self.main_id)
         else:
             run_shell(f"yabai -m window {self.main_id} --focus")
-            control_stream_audio(self.id_dict[self.focused_id], mute=True)
+            if self.focused_id not in [self.main_id, self.cover_id]:
+                control_stream_audio(self.id_dict[self.focused_id], mute=True)
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id
 
