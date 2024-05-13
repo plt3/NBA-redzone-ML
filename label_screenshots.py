@@ -11,7 +11,10 @@ from take_screenshots import FILE_EXTENSION
 GUI utility to easily label screenshots as being either NBA games or commercials.
 
 Run with python3 label_screenshots.py, then use left/right arrows to add correct
-label to end of image's filename. Stop by quitting the Python app.
+label to end of image's filename. Up arrow goes back one image to fix errors made
+when labeling. D key deletes an image.
+
+Stop by quitting the Python app.
 """
 
 GAME_CLASS = "game"
@@ -30,7 +33,7 @@ class MainWindow(QWidget):
         )
 
         self.finished = False
-        self.setMinimumSize(800, 500)
+        self.setMinimumSize(800, 550)
         self.setWindowTitle("Label screenshots")
         self.image_label = QLabel(parent=self)
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -42,10 +45,14 @@ class MainWindow(QWidget):
         self.instruction_label.setStyleSheet(
             "QLabel {font-size: 30px; margin-top: 20px}"
         )
+        self.number_label = QLabel("peen")
+        self.number_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.number_label.setStyleSheet("QLabel {font-size: 25px; margin-top: 10px}")
 
         self.layout2 = QGridLayout()
         self.layout2.addWidget(self.image_label, 0, 0)
         self.layout2.addWidget(self.instruction_label, 1, 0)
+        self.layout2.addWidget(self.number_label, 2, 0)
 
         self.setLayout(self.layout2)
 
@@ -71,8 +78,12 @@ class MainWindow(QWidget):
             self.current_path = os.path.join(UNSORTED_DATA_DIRECTORY, self.current_pic)
             self.pix_map = QPixmap(self.current_path).scaledToWidth(600)
             self.image_label.setPixmap(self.pix_map)
+            self.number_label.setText(
+                f"{self.screenshot_index}/{len(self.screenshots)} images labeled"
+            )
         except IndexError:
             self.instruction_label.setText("All images labeled.")
+            self.number_label.setText("")
             self.finished = True
 
     def keyPressEvent(self, a0):
@@ -106,6 +117,7 @@ class MainWindow(QWidget):
                 self.changePic(0)
             elif Qt.Key(a0.key()).name == "Key_Up":
                 if self.screenshot_index > 0:
+                    # undo labeling of last image and go back one to allow corrections
                     prev_pic = self.screenshots[self.screenshot_index - 1]
                     old_fname = prev_pic.replace(
                         f"_{self.screenshot_actions[prev_pic]}.{FILE_EXTENSION}",

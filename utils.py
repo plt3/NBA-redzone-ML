@@ -257,7 +257,7 @@ def get_windows(space, title=False):
     return windows_info
 
 
-def get_chrome_cli_ids(windows):
+def get_chrome_cli_ids(windows, debug=False):
     """Return dictionary mapping yabai window IDs to chrome-cli tab IDs (assuming 1 tab
     per window since windows are using minimal theme)"""
     tabs = json.loads(run_shell("OUTPUT_FORMAT=json brave-cli list tabs", shell=True))
@@ -266,9 +266,10 @@ def get_chrome_cli_ids(windows):
     for win in windows:
         for tab in tabs["tabs"]:
             # Unsure if this check is robust enough
-            # if tab["title"] == strip_win_title(win["title"]):
             if tab["title"] == strip_win_title(win["title"]) or (
-                tab["title"] == "" and strip_win_title(win["title"]).endswith("mp4")
+                debug == True
+                and tab["title"] == ""
+                and strip_win_title(win["title"]).endswith("mp4")
             ):
                 id_dict[win["id"]] = int(tab["id"])
                 break

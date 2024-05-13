@@ -20,6 +20,7 @@ MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
 DEFAULT_UPDATE_RATE = 3
 # when making request to start halftime, stop classification for 14 minutes
 HALFTIME_DURATION = 14 * 60
+DEBUG_VALUE = True
 
 
 class StreamManager:
@@ -46,7 +47,7 @@ class StreamManager:
             self.space = int(space)
 
         windows = get_windows(self.space, title=True)
-        self.id_dict = get_chrome_cli_ids(windows)
+        self.id_dict = get_chrome_cli_ids(windows, debug=DEBUG_VALUE)
 
         self.main_id, title = choose_main_window_id(windows)
         print(f'Selected main window with title "{title}" in space {self.space}.')
@@ -117,7 +118,9 @@ class StreamManager:
 
         self.app = Flask(__name__)
         self.app.route("/")(self.flask_main_route)
-        self.app.route("/halftime", methods=["POST"])(self.handle_halftime_request)
+        self.app.route("/force-halftime", methods=["POST"])(
+            self.handle_halftime_request
+        )
         self.app.route("/force-commercial", methods=["POST"])(
             self.handle_force_commercial_request
         )
@@ -185,7 +188,7 @@ class StreamManager:
             return {"next_action": "Stop forcing commercial"}
         else:
             self.return_to_main()
-            return {"next_action": "Start forcing commercial"}
+            return {"next_action": "Force commercial"}
 
     def handle_force_nba_request(self):
         """Force/stop forcing showing game in main window"""
@@ -222,7 +225,7 @@ class StreamManager:
         else:
             if switch_back_to_halftime:
                 self.switch_away_from_main()
-            return {"next_action": "Start forcing NBA"}
+            return {"next_action": "Force NBA"}
 
     def force_halftime(self):
         """Switch to other stream for the duration of halftime in main

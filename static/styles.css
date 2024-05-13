@@ -14,7 +14,7 @@ button {
   padding: 10px 20px;
   font-size: 32px;
   margin-top: 20px;
-  width: 100%;
+  width: min(95%, 600px);
 }
 
 button:hover {
@@ -24,6 +24,8 @@ button:hover {
 
 button:disabled {
   background-color: #9c9c9c;
+  color: #bfbfbf;
+  cursor: default;
 }
 
 #main-container {
@@ -37,6 +39,7 @@ button:disabled {
 
 #button-container {
   margin-top: 15vh;
+  width: 100%;
   display: flex;
   align-items: center;
   flex-direction: column;
