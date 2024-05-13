@@ -112,6 +112,7 @@ class ImageCropper:
         """Use (relatively) simpler heuristic to crop training images: remove all
         rows of known pixel values (such as Brave Browser address bar or window
         background from Fullscreen Anything browser extension)"""
+        # TODO: color below image could also be white: see sorted_screenshots/com/24-05-09_20-59-37_7605_com.jpg
         if edge_type == "top":
             # this starts at right of browser window header
             start_pixel = (self.width - 50, 20)
