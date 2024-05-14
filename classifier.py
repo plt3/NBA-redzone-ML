@@ -22,12 +22,7 @@ class Classifier:
     ):
         self.screenshot_tempfile = screenshot_tempfile
         self.model_file_path = model_file_path
-        self.conv_base = keras.applications.vgg16.VGG16(
-            weights="imagenet",
-            include_top=False,
-            input_shape=IMAGE_DIMS + (3,),
-        )
-        self.top_model = keras.models.load_model(self.model_file_path)
+        self.model = keras.models.load_model(self.model_file_path)
 
     def __del__(self):
         try:
@@ -48,11 +43,10 @@ class Classifier:
             print(e)
             # use uncropped image as input if error cropping
             img = cropper.img.resize((IMAGE_DIMS[1], IMAGE_DIMS[0]))
+
         img_arr = img_to_array(img)
         img_arr = np.array([img_arr])
-        input = keras.applications.vgg16.preprocess_input(img_arr)
-        features = self.conv_base.predict(input, verbose=0)
-        prediction = self.top_model.predict(features, verbose=0)
+        prediction = self.model.predict(img_arr, verbose=0)
         done = time.time()
         res_str = f"{round(before_classify - start, 2)}s to take sc, {round(done - before_classify, 2)} to classify"
 

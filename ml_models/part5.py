@@ -1,10 +1,13 @@
 import matplotlib.pyplot as plt
+from setup_datasets import IMAGE_DIMS, get_datasets
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.utils import image_dataset_from_directory
+
+model_file_name = "part5_cropped.keras"
+train_dataset, validation_dataset, test_dataset = get_datasets()
 
 conv_base = keras.applications.vgg16.VGG16(
-    weights="imagenet", include_top=False, input_shape=(180, 180, 3)
+    weights="imagenet", include_top=False, input_shape=IMAGE_DIMS + (3,)
 )
 conv_base.trainable = True
 for layer in conv_base.layers[:-4]:
@@ -17,7 +20,7 @@ data_augmentation = keras.Sequential(
         layers.RandomZoom(0.2),
     ]
 )
-inputs = keras.Input(shape=(180, 180, 3))
+inputs = keras.Input(shape=IMAGE_DIMS + (3,))
 x = data_augmentation(inputs)
 x = keras.applications.vgg16.preprocess_input(x)
 x = conv_base(x)
@@ -32,20 +35,6 @@ model.compile(
     metrics=["accuracy"],
 )
 
-# 2000 images
-train_dataset = image_dataset_from_directory(
-    "../data/training", image_size=(180, 180), batch_size=32
-)
-# 1000 images
-validation_dataset = image_dataset_from_directory(
-    "../data/validation", image_size=(180, 180), batch_size=32
-)
-# 1984 images
-test_dataset = image_dataset_from_directory(
-    "../data/evaluation", image_size=(180, 180), batch_size=32
-)
-
-model_file_name = "fine_tuning.keras"
 callbacks = [
     keras.callbacks.ModelCheckpoint(
         filepath=model_file_name, save_best_only=True, monitor="val_loss"
@@ -71,8 +60,7 @@ plt.title("Training and validation loss")
 plt.legend()
 plt.show()
 
-# # this gets 96.3% accuracy on the test data :(((((((
-# # (3 or so hours to train?). Have no idea why this didn't cause any improvement
+# # this gets 98.47% accuracy on the test data (best yet)
 # test_model = keras.models.load_model(model_file_name)
 # test_loss, test_acc = test_model.evaluate(test_dataset)
 # print(f"Test accuracy: {test_acc:.3f}")

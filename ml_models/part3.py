@@ -11,7 +11,7 @@ from tqdm import tqdm
 #
 # book also lists other image-classification models (other than VGG16) to try
 
-model_file_name = "part3_cropped.keras"
+model_file_name = "part3_cropped_5-13-24_2.keras"
 train_dataset, validation_dataset, test_dataset = get_datasets()
 
 conv_base = keras.applications.vgg16.VGG16(
@@ -38,7 +38,8 @@ val_features, val_labels = get_features_and_labels(validation_dataset)
 # changes based on input_shape passed to VGG16!!! Was (5, 5, 512) when input shape
 # was (180, 180, 3), but I changed it. Would probably be better to set this shape
 # dynamically anyways
-inputs = keras.Input(shape=(6, 10, 512))
+# inputs = keras.Input(shape=(6, 10, 512))
+inputs = keras.Input(shape=conv_base.layers[-1].output.shape[1:])
 x = layers.Flatten()(inputs)
 x = layers.Dense(256)(x)
 x = layers.Dropout(0.5)(x)
@@ -76,9 +77,6 @@ plt.title("Training and validation loss")
 plt.legend()
 plt.show()
 
-# # this gets 96.3% accuracy on the test data
-# # weirdly, this gets exactly 96.08% accuracy, like part2.py on predict.py, but has
-# # 1/23 FPs and 22/23 FNs
 # # also gets 98.3% accuracy with cropped data!!
 # test_model = keras.models.load_model(model_file_name)
 # test_loss, test_acc = test_model.evaluate(test_features, test_labels)

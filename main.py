@@ -16,10 +16,11 @@ from utils import (choose_main_window_id, choose_space, close_commercial_cover,
                    strip_win_title)
 
 FORCE_COMMERCIAL = None
-MODEL_FILE_PATH = "ml_models/part3_cropped.keras"
+# from ml_models/part5.py
+MODEL_FILE_PATH = "ml_models/part5_cropped.keras"
 DEFAULT_UPDATE_RATE = 3
-# when making request to start halftime, stop classification for 14 minutes
-HALFTIME_DURATION = 14 * 60
+# when making request to start halftime, stop classification for 15 minutes
+HALFTIME_DURATION = 15 * 60
 DEBUG_VALUE = True
 
 
@@ -144,10 +145,6 @@ class StreamManager:
         print(message)
 
     def flask_main_route(self):
-        # TODO: routes (and so buttons on main screen) for:
-        # starting halftime (15 mins until game starts again)
-        # forcing game/commercial (for next 30 seconds?)
-        # switching focus
         return render_template("index.html")
 
     def handle_halftime_request(self):
