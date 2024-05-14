@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -25,6 +26,8 @@ DEBUG_VALUE = True
 
 
 class StreamManager:
+    yabai_signal_label = "MLRedZone"
+
     def __init__(
         self,
         space=None,
@@ -76,10 +79,22 @@ class StreamManager:
             self.cover_id = None
 
         # run skhd_process in background for hotkeys to work
-        self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"])
+        env = os.environ.copy()
+        env["MLREDZONE_PORT"] = str(server_port)
+        self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"], env=env)
         print("skhd process started.")
 
         self._start_flask_server(server_port)
+
+        # send window focus request when window is focused
+        uri = "http://localhost"
+        if server_port != 80:
+            uri += f":{server_port}"
+        os.system(
+            f"yabai -m signal --add event=window_focused label={self.yabai_signal_label}"
+            ' app="^Brave Browser$" action="curl -X POST'
+            f' {uri}/focus/\\$YABAI_WINDOW_ID"'
+        )
 
         # save screenshots for training classifier later
         if gather_data:
@@ -111,6 +126,9 @@ class StreamManager:
             run_shell(f"yabai -m config mouse_follows_focus {self.mouse_follows_focus}")
             print("Switched mouse_follows_focus back on.")
 
+        run_shell(f"yabai -m signal --remove {self.yabai_signal_label}")
+        print(f"Yabai window focus signal removed.")
+
     def _start_flask_server(self, port):
         # suppress Flask output
         flask.cli.show_server_banner = lambda *_: None
@@ -118,6 +136,8 @@ class StreamManager:
         log.setLevel(logging.ERROR)
 
         self.app = Flask(__name__)
+
+        # add routes
         self.app.route("/")(self.flask_main_route)
         self.app.route("/force-halftime", methods=["POST"])(
             self.handle_halftime_request
@@ -126,6 +146,13 @@ class StreamManager:
             self.handle_force_commercial_request
         )
         self.app.route("/force-nba", methods=["POST"])(self.handle_force_nba_request)
+        self.app.route("/focus/<int:win_id>", methods=["POST"])(
+            self.handle_focus_window_request
+        )
+        self.app.route("/toggle-fullscreen", methods=["POST"])(
+            self.handle_toggle_fullscreen_request
+        )
+
         # run Flask app in background thread
         host = "0.0.0.0"
         Thread(target=lambda: self.app.run(host=host, port=port), daemon=True).start()
@@ -146,6 +173,35 @@ class StreamManager:
 
     def flask_main_route(self):
         return render_template("index.html")
+
+    def handle_focus_window_request(self, win_id):
+        """Focus window with given ID and make that window the new main window"""
+        if win_id not in [win["id"] for win in get_windows(self.space)]:
+            return {"message": f"{win_id} is not a stream window"}, 400
+        elif win_id == self.focused_id:
+            return {"message": f"{win_id} is already focused"}, 400
+
+        with self.lock:
+            self.was_commercial[self.main_id] = False
+            self.main_id = win_id
+
+        print(f"Switched main ID to {win_id}")
+        self.return_to_main()
+
+        return {}
+
+    def handle_toggle_fullscreen_request(self):
+        windows = get_windows(self.space)
+        fullscreen = windows[0]["fullscreen"]
+        if fullscreen:
+            print("Switching back to tile view")
+            for win in windows:
+                if win["id"] != self.cover_id and win["fullscreen"]:
+                    run_shell(f"yabai -m window {win['id']} --toggle zoom-fullscreen")
+        else:
+            print("Fullscreening windows")
+            self.fullscreen_window(windows, self.focused_id)
+        return {}
 
     def handle_halftime_request(self):
         """Start/stop halftime break in main window"""
@@ -284,14 +340,17 @@ class StreamManager:
         front window.
         """
         for window in windows:
-            if not window["fullscreen"]:
-                run_shell(f"yabai -m window {window['id']} --toggle zoom-fullscreen")
-            if window["id"] == window_id:
-                run_shell(f"yabai -m window {window['id']} --focus")
-                self.focused_id = window_id
-            control_stream_audio(
-                self.id_dict[window["id"]], mute=(window["id"] != window_id)
-            )
+            if window["id"] != self.cover_id:
+                if not window["fullscreen"]:
+                    run_shell(
+                        f"yabai -m window {window['id']} --toggle zoom-fullscreen"
+                    )
+                if window["id"] == window_id:
+                    run_shell(f"yabai -m window {window['id']} --focus")
+                    self.focused_id = window_id
+                control_stream_audio(
+                    self.id_dict[window["id"]], mute=(window["id"] != window_id)
+                )
 
     def win_is_commercial(self, win_id, double_check=True, force=None):
         if force is not None:

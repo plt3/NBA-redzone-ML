@@ -9,7 +9,6 @@ from tqdm import tqdm
 INPUT_DIR = "../sorted_screenshots"
 OUTPUT_DIR = "model_data"
 IMAGE_DIMS = (200, 320)
-# IMAGE_DIMS = (300, 480)
 
 
 def create_model_data(crop=False):

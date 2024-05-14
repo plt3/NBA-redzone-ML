@@ -1,18 +1,16 @@
-# TODO: fix interaction between karabiner and these hotkeys
-
 ctrl - f [
-    "Brave Browser" : python3 manage_windows.py toggle_fullscreen
+    "Brave Browser" : curl -X POST "http://localhost:$MLREDZONE_PORT/toggle-fullscreen" &>/dev/null
 ]
 
 ctrl - up [
-    "Brave Browser" : python3 manage_windows.py move_north
+    "Brave Browser" : yabai -m window --focus north
 ]
 ctrl - down [
-    "Brave Browser" : python3 manage_windows.py move_south
+    "Brave Browser" : yabai -m window --focus south
 ]
 ctrl - right [
-    "Brave Browser" : python3 manage_windows.py move_east
+    "Brave Browser" : yabai -m window --focus east
 ]
 ctrl - left [
-    "Brave Browser" : python3 manage_windows.py move_west
+    "Brave Browser" : yabai -m window --focus west
 ]
