@@ -45,7 +45,7 @@ class MainWindow(QWidget):
         self.instruction_label.setStyleSheet(
             "QLabel {font-size: 30px; margin-top: 20px}"
         )
-        self.number_label = QLabel("peen")
+        self.number_label = QLabel()
         self.number_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         self.number_label.setStyleSheet("QLabel {font-size: 25px; margin-top: 10px}")
 
@@ -87,7 +87,7 @@ class MainWindow(QWidget):
             self.finished = True
 
     def keyPressEvent(self, a0):
-        if not self.finished:
+        if not self.finished and a0 is not None:
             if Qt.Key(a0.key()).name in ["Key_Right", "Key_Left"]:
                 if Qt.Key(a0.key()).name == "Key_Right":
                     img_class = GAME_CLASS

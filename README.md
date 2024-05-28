@@ -26,8 +26,8 @@
 
 ## TODO:
 
-- stop using overlay at all?
-  - or at least don't try to collect training screenshots when overlay is on
-  - use iTerm transparency instead? or some other way to have transparency
+- automate opening windows in minimal Brave theme
+- get rid of skhd by using some sort of window signal when fullscreening? Like window_resized or something
 - turn off mouse_follows_focus in yabai at start, and turn it back on after if needed
   - or just bite the bullet and use scripting addition so I can raise and lower?
+- type hints

@@ -10,13 +10,21 @@ from flask import Flask, render_template
 
 from classifier import Classifier
 from take_screenshots import ScreenshotTaker
-from utils import (choose_main_window_id, choose_space, close_commercial_cover,
-                   control_stream_audio, cover_window, get_chrome_cli_ids,
-                   get_window_video_elements, get_windows,
-                   let_user_choose_iframe, open_commercial_cover, run_shell,
-                   strip_win_title)
+from utils import (
+    choose_main_window_id,
+    choose_space,
+    close_commercial_cover,
+    control_stream_audio,
+    cover_window,
+    get_chrome_cli_ids,
+    get_window_video_elements,
+    get_windows,
+    let_user_choose_iframe,
+    open_commercial_cover,
+    run_shell,
+    strip_win_title,
+)
 
-FORCE_COMMERCIAL = None
 # from ml_models/part5.py
 MODEL_FILE_PATH = "ml_models/part5_cropped.keras"
 DEFAULT_UPDATE_RATE = 3
