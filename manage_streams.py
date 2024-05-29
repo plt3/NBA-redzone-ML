@@ -11,6 +11,7 @@ from classifier import Classifier
 from take_screenshots import ScreenshotTaker
 from utils import (
     choose_main_window_id,
+    chrome_cli_execute,
     close_window,
     control_stream_audio,
     convert_open_windows_to_minimal,
@@ -26,15 +27,15 @@ from utils import (
 )
 
 # from ml_models/part5.py
-MODEL_FILE_PATH = "ml_models/part5_cropped.keras"
+MODEL_FILE_PATH = "ml_models/part5_cropped_5-29-24.keras"
 DEFAULT_UPDATE_RATE = 3
 # when making request to start halftime, stop classification for 15 minutes
 HALFTIME_DURATION = 15 * 60
-DEBUG_VALUE = True
 
 
 class StreamManager:
-    yabai_signal_label = "MLRedZone"
+    yabai_focus_signal_label = "MLRedZoneFocus"
+    yabai_fullscreen_signal_label = "MLRedZoneFullscreen"
 
     def __init__(
         self,
@@ -53,6 +54,7 @@ class StreamManager:
         self.cover_commercials = cover_commercials
         self.update_rate = update_rate
         self.during_halftime = False
+        self.windows_are_fullscreen = False
 
         self.space = space
 
@@ -66,11 +68,28 @@ class StreamManager:
             windows = convert_open_windows_to_minimal(self.space)
         else:
             windows = open_stream_windows(urls, self.space)
+        windows = get_windows(self.space, title=True)
 
         self.id_dict = get_chrome_cli_ids(windows)
 
         self.main_id, title = choose_main_window_id(windows)
         print(f'Selected main window with title "{title}" in space {self.space}.')
+
+        # check if can execute js using chrome-cli
+        test_val = "testing_string"
+        if (
+            chrome_cli_execute(
+                "javascript/test.js",
+                self.id_dict[self.main_id],
+                {"TEST_VALUE": test_val},
+            ).strip()
+            != test_val
+        ):
+            raise Exception(
+                "Unable to inject JavaScript into browser pages. Did you"
+                " check View > Developer > Allow JavaScript from Apple Events in the"
+                " browser options?"
+            )
 
         self.was_commercial = {}
         # initialize all windows as not showing commercials
@@ -107,9 +126,14 @@ class StreamManager:
         if server_port != 80:
             uri += f":{server_port}"
         os.system(
-            f"yabai -m signal --add event=window_focused label={self.yabai_signal_label}"
+            f"yabai -m signal --add event=window_focused label={self.yabai_focus_signal_label}"
             ' app="^Brave Browser$" action="curl -X POST'
             f' {uri}/focus/\\$YABAI_WINDOW_ID"'
+        )
+        os.system(
+            f"yabai -m signal --add event=window_resized label={self.yabai_fullscreen_signal_label}"
+            ' app="^Brave Browser$" action="curl -X POST'
+            f' {uri}/toggle-fullscreen/\\$YABAI_WINDOW_ID"'
         )
 
         # save screenshots for training classifier later
@@ -148,8 +172,10 @@ class StreamManager:
                 print("Switched mouse_follows_focus back on.")
 
         try:
-            run_shell(f"yabai -m signal --remove {self.yabai_signal_label}")
+            run_shell(f"yabai -m signal --remove {self.yabai_focus_signal_label}")
             print(f"Yabai window focus signal removed.")
+            run_shell(f"yabai -m signal --remove {self.yabai_fullscreen_signal_label}")
+            print(f"Yabai window fullscreen signal removed.")
         except subprocess.CalledProcessError:
             pass
 
@@ -173,7 +199,7 @@ class StreamManager:
         self.app.route("/focus/<int:win_id>", methods=["POST"])(
             self.handle_focus_window_request
         )
-        self.app.route("/toggle-fullscreen", methods=["POST"])(
+        self.app.route("/toggle-fullscreen/<int:win_id>", methods=["POST"])(
             self.handle_toggle_fullscreen_request
         )
 
@@ -214,17 +240,24 @@ class StreamManager:
 
         return {}
 
-    def handle_toggle_fullscreen_request(self):
+    def handle_toggle_fullscreen_request(self, win_id):
+        if win_id != self.main_id:
+            return {}
+
         windows = get_windows(self.space)
-        fullscreen = windows[0]["fullscreen"]
-        if fullscreen:
+
+        if not self.windows_are_fullscreen:
+            print("Fullscreening windows")
+            self.fullscreen_window(windows, self.main_id)
+        else:
             print("Switching back to tile view")
             for win in windows:
                 if win["id"] != self.cover_id and win["fullscreen"]:
                     run_shell(f"yabai -m window {win['id']} --toggle zoom-fullscreen")
-        else:
-            print("Fullscreening windows")
-            self.fullscreen_window(windows, self.focused_id)
+
+        with self.lock:
+            self.windows_are_fullscreen = not self.windows_are_fullscreen
+
         return {}
 
     def handle_halftime_request(self):
@@ -371,7 +404,8 @@ class StreamManager:
                     )
                 if window["id"] == window_id:
                     run_shell(f"yabai -m window {window['id']} --focus")
-                    self.focused_id = window_id
+                    with self.lock:
+                        self.focused_id = window_id
                 control_stream_audio(
                     self.id_dict[window["id"]], mute=(window["id"] != window_id)
                 )
