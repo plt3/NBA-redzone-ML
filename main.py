@@ -1,6 +1,5 @@
 import argparse
 
-from manage_streams import StreamManager
 from take_screenshots import DATA_DIRECTORY
 from utils import choose_space
 
@@ -33,8 +32,16 @@ def main():
     if args.space is None:
         args.space = choose_space()
 
-    manager = StreamManager(args.space, args.URLs, gather_data=args.take_screenshots)
-    manager.mainloop()
+    from manage_streams import StreamManager
+
+    try:
+        manager = StreamManager(
+            args.space, args.URLs, gather_data=args.take_screenshots
+        )
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received, aborting.")
+    else:
+        manager.mainloop()
 
 
 if __name__ == "__main__":

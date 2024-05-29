@@ -14,3 +14,6 @@
   - running the classifier also takes ~2.25x longer on each image (proportional to how many times more pixels images have)
 - part5_cropped.keras: 98.6% on test data, 98.47% on predict.py (4239 images total), with 200x320 images
   - seems like the best result then
+- part5_cropped_5-29-24.keras: 97.8% on test data, 98.01% on predict.py on 5/29/24 (5513 images total), with 200x320 images
+  - this is also after reclassifying some images (see reclassified_images.txt)
+- part3_cropped_5-29-24.keras: 98.2% on test data, 98.28% on predict.py on 5/29/24 (5513 images total), with 200x320 images

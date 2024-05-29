@@ -26,7 +26,6 @@
 
 ## TODO:
 
-- automate opening windows in minimal Brave theme
 - get rid of skhd by using some sort of window signal when fullscreening? Like window_resized or something
 - turn off mouse_follows_focus in yabai at start, and turn it back on after if needed
   - or just bite the bullet and use scripting addition so I can raise and lower?

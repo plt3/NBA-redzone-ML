@@ -57,7 +57,6 @@ def view_dataset(dataset):
     plt.figure(figsize=(10, 10))
     for images, _ in dataset.take(1):
         for i in range(9):
-            # augmented_images = data_augmentation(images)
             plt.subplot(3, 3, i + 1)
             plt.imshow(images[i].numpy().astype("uint8"))
             plt.axis("off")
@@ -66,8 +65,6 @@ def view_dataset(dataset):
 
 def main():
     create_model_data(True)
-    # train, _, _ = get_datasets()
-    # view_dataset(train)
 
 
 if __name__ == "__main__":

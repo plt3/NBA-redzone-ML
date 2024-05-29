@@ -11,7 +11,7 @@ screenshots
 ml_model_attempts/data/training
 ml_model_attempts/data/validation
 ml_model_attempts/data/evaluation
-wrongs.txt
+*wrongs.txt
 scratch.py
 server_test.py
 reclassified_images.txt

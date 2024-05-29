@@ -93,21 +93,59 @@ def notify(text, title=NOTIFICATION_TITLE):
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
 
 
-def open_stream_windows(urls: list[str], space: int) -> None:
+def open_stream_windows(urls: list[str], space: int) -> list[dict]:
     """Open provided URLs in provided space in minimal Brave windows"""
-    ids_before = [win["id"] for win in get_windows()]
+
+    # focus other display if specified space is visible in display (so that windows
+    # created spawn in correct space in the first place)
+    space_info = json.loads(run_shell(f"yabai -m query --spaces --space {space}"))
+    if space_info["is-visible"]:
+        run_shell(f"yabai -m display --focus {space_info['display']}")
+
+    def get_all_brave_windows():
+        return [
+            win
+            for win in get_windows(title=True, app=True)
+            if win["app"] == "Brave Browser"
+        ]
+
+    wins_before = get_all_brave_windows()
     for url in urls:
         run_shell(f"open -a 'Brave Browser.app' -n --args --new-window --app='{url}'")
 
-    ids_after = ids_before
-    while len(ids_after) == len(ids_before):
+    wins_after = wins_before
+    new_windows = []
+    while len(wins_after) != len(wins_before) + len(urls) or any(
+        [win["title"] == "" for win in new_windows]
+    ):
         time.sleep(0.5)
-        ids_after = [win["id"] for win in get_windows()]
+        wins_after = get_all_brave_windows()
 
-    new_window_ids = [id for id in ids_after if id not in ids_before]
+        new_windows = [
+            win for win in wins_after if win["id"] not in [w["id"] for w in wins_before]
+        ]
 
-    for id in new_window_ids:
-        run_shell(f"yabai -m window {id} --space {space}")
+    for win in new_windows:
+        run_shell(f"yabai -m window {win['id']} --space {space}")
+
+    return new_windows
+
+
+def convert_open_windows_to_minimal(space: int) -> list[dict]:
+    """Convert all tabs in given space to minimal browser windows"""
+    space_wins = get_windows(space, title=True)
+    tabs = json.loads(run_shell("OUTPUT_FORMAT=json brave-cli list tabs", shell=True))
+    tab_urls = []
+
+    for tab in tabs["tabs"]:
+        for win in space_wins:
+            if tab["windowName"] == strip_win_title(win["title"]):
+                tab_urls.append(tab["url"])
+
+    for win in space_wins:
+        close_window(win["id"])
+
+    return open_stream_windows(tab_urls, space)
 
 
 # TODO: split some of these into separate classes/files? Like chrome-cli or cover stuff
@@ -127,7 +165,7 @@ def open_commercial_cover(space, windows):
     return win_id
 
 
-def close_commercial_cover(win_id):
+def close_window(win_id):
     run_shell(f"yabai -m window {win_id} --close")
 
 
@@ -254,7 +292,9 @@ def choose_main_window_id(windows):
     return windows[choice_index]["id"], title
 
 
-def get_windows(space: int | None = None, title: bool = False) -> list[dict]:
+def get_windows(
+    space: int | None = None, title: bool = False, app: bool = False
+) -> list[dict]:
     command = "yabai -m query --windows"
     if space is not None:
         command += f" --space {space}"
@@ -269,14 +309,17 @@ def get_windows(space: int | None = None, title: bool = False) -> list[dict]:
         for win in windows
     ]
 
-    if title:
+    if title or app:
         for index, win in enumerate(windows):
-            windows_info[index]["title"] = win["title"]
+            if title:
+                windows_info[index]["title"] = win["title"]
+            if app:
+                windows_info[index]["app"] = win["app"]
 
     return windows_info
 
 
-def get_chrome_cli_ids(windows, debug=False):
+def get_chrome_cli_ids(windows):
     """Return dictionary mapping yabai window IDs to chrome-cli tab IDs (assuming 1 tab
     per window since windows are using minimal theme)"""
     tabs = json.loads(run_shell("OUTPUT_FORMAT=json brave-cli list tabs", shell=True))
@@ -285,11 +328,7 @@ def get_chrome_cli_ids(windows, debug=False):
     for win in windows:
         for tab in tabs["tabs"]:
             # Unsure if this check is robust enough
-            if tab["title"] == strip_win_title(win["title"]) or (
-                debug == True
-                and tab["title"] == ""
-                and strip_win_title(win["title"]).endswith("mp4")
-            ):
+            if tab["windowName"] == strip_win_title(win["title"]):
                 id_dict[win["id"]] = int(tab["id"])
                 break
         else:
@@ -298,13 +337,3 @@ def get_chrome_cli_ids(windows, debug=False):
             )
 
     return id_dict
-
-
-if __name__ == "__main__":
-    open_stream_windows(
-        [
-            "https://github.com/kkoomen/vim-doge",
-            "https://github.com/JoosepAlviste/nvim-ts-context-commentstring",
-        ],
-        6,
-    )

@@ -11,8 +11,9 @@ from classifier import Classifier
 from take_screenshots import ScreenshotTaker
 from utils import (
     choose_main_window_id,
-    close_commercial_cover,
+    close_window,
     control_stream_audio,
+    convert_open_windows_to_minimal,
     cover_window,
     get_chrome_cli_ids,
     get_window_video_elements,
@@ -56,15 +57,17 @@ class StreamManager:
         self.space = space
 
         if len(urls) == 0:
-            # TODO: find chrome-cli windows in given space, then find all tabs in those,
-            # then close those windows and open all tabs as minimal windows and move
-            # them to space
-            pass
+            input(
+                "\nSince no stream URLs were provided on the command line, assuming that"
+                f" all tabs in all windows in space {self.space} contain streams,"
+                " and will close all of them to reopen them with minimal browser theme."
+                " Press Enter to acknowledge this, or ctrl + c to cancel."
+            )
+            windows = convert_open_windows_to_minimal(self.space)
         else:
-            open_stream_windows(urls, self.space)
+            windows = open_stream_windows(urls, self.space)
 
-        windows = get_windows(self.space, title=True)
-        self.id_dict = get_chrome_cli_ids(windows, debug=DEBUG_VALUE)
+        self.id_dict = get_chrome_cli_ids(windows)
 
         self.main_id, title = choose_main_window_id(windows)
         print(f'Selected main window with title "{title}" in space {self.space}.')
@@ -129,18 +132,26 @@ class StreamManager:
     def __del__(self):
         self.classifier.__del__()
 
-        close_commercial_cover(self.cover_id)
-        print("Commercial cover window closed.")
+        if hasattr(self, "cover_id"):
+            close_window(self.cover_id)
+            print("Commercial cover window closed.")
 
-        self.skhd_process.terminate()
-        print("skhd process terminated.")
+        if hasattr(self, "skhd_process"):
+            self.skhd_process.terminate()
+            print("skhd process terminated.")
 
-        if self.mouse_follows_focus != "off":
-            run_shell(f"yabai -m config mouse_follows_focus {self.mouse_follows_focus}")
-            print("Switched mouse_follows_focus back on.")
+        if hasattr(self, "mouse_follows_focus"):
+            if self.mouse_follows_focus != "off":
+                run_shell(
+                    f"yabai -m config mouse_follows_focus {self.mouse_follows_focus}"
+                )
+                print("Switched mouse_follows_focus back on.")
 
-        run_shell(f"yabai -m signal --remove {self.yabai_signal_label}")
-        print(f"Yabai window focus signal removed.")
+        try:
+            run_shell(f"yabai -m signal --remove {self.yabai_signal_label}")
+            print(f"Yabai window focus signal removed.")
+        except subprocess.CalledProcessError:
+            pass
 
     def _start_flask_server(self, port):
         # suppress Flask output

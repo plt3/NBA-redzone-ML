@@ -11,7 +11,7 @@ from tqdm import tqdm
 #
 # book also lists other image-classification models (other than VGG16) to try
 
-model_file_name = "part3_cropped_5-13-24_2.keras"
+model_file_name = "part3_cropped_5-29-24.keras"
 train_dataset, validation_dataset, test_dataset = get_datasets()
 
 conv_base = keras.applications.vgg16.VGG16(

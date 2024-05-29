@@ -4,16 +4,16 @@ from tensorflow import keras
 from tensorflow.keras.preprocessing.image import img_to_array, load_img
 from tqdm import tqdm
 
-model_file_name = "part5_cropped.keras"
-# model_file_name = "part3_cropped_5-13-24_2.keras"
+# model_file_name = "part5_cropped_5-29-24.keras"
+model_file_name = "part3_cropped_5-29-24.keras"
 
 _, _, test_dataset = get_datasets()
 test_model = keras.models.load_model(model_file_name)
 
 
-# conv_base = keras.applications.vgg16.VGG16(
-#     weights="imagenet", include_top=False, input_shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3)
-# )
+conv_base = keras.applications.vgg16.VGG16(
+    weights="imagenet", include_top=False, input_shape=(IMAGE_DIMS[0], IMAGE_DIMS[1], 3)
+)
 
 corrects = 0
 fps = 0
@@ -24,11 +24,11 @@ for image_path in tqdm(test_dataset.file_paths):
     img_arr = img_to_array(img)
     img_arr = np.array([img_arr])
 
-    pred = test_model.predict(img_arr, verbose=0)
+    # pred = test_model.predict(img_arr, verbose=0)
 
-    # inp = keras.applications.vgg16.preprocess_input(img_arr)
-    # features = conv_base.predict(inp, verbose=0)
-    # pred = test_model.predict(features, verbose=0)
+    inp = keras.applications.vgg16.preprocess_input(img_arr)
+    features = conv_base.predict(inp, verbose=0)
+    pred = test_model.predict(features, verbose=0)
 
     if "_game" in image_path:
         if pred[0][0] >= 0.5:
