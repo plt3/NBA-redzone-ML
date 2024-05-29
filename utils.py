@@ -93,6 +93,23 @@ def notify(text, title=NOTIFICATION_TITLE):
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
 
 
+def open_stream_windows(urls: list[str], space: int) -> None:
+    """Open provided URLs in provided space in minimal Brave windows"""
+    ids_before = [win["id"] for win in get_windows()]
+    for url in urls:
+        run_shell(f"open -a 'Brave Browser.app' -n --args --new-window --app='{url}'")
+
+    ids_after = ids_before
+    while len(ids_after) == len(ids_before):
+        time.sleep(0.5)
+        ids_after = [win["id"] for win in get_windows()]
+
+    new_window_ids = [id for id in ids_after if id not in ids_before]
+
+    for id in new_window_ids:
+        run_shell(f"yabai -m window {id} --space {space}")
+
+
 # TODO: split some of these into separate classes/files? Like chrome-cli or cover stuff
 def open_commercial_cover(space, windows):
     res_text = run_shell(
@@ -237,8 +254,10 @@ def choose_main_window_id(windows):
     return windows[choice_index]["id"], title
 
 
-def get_windows(space, title=False):
-    command = f"yabai -m query --windows --space {space}"
+def get_windows(space: int | None = None, title: bool = False) -> list[dict]:
+    command = "yabai -m query --windows"
+    if space is not None:
+        command += f" --space {space}"
 
     windows = json.loads(run_shell(command))
     windows_info = [
@@ -279,3 +298,13 @@ def get_chrome_cli_ids(windows, debug=False):
             )
 
     return id_dict
+
+
+if __name__ == "__main__":
+    open_stream_windows(
+        [
+            "https://github.com/kkoomen/vim-doge",
+            "https://github.com/JoosepAlviste/nvim-ts-context-commentstring",
+        ],
+        6,
+    )
