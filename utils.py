@@ -141,7 +141,7 @@ def convert_open_windows_to_minimal(space: int) -> list[dict]:
 
     for tab in tabs["tabs"]:
         for win in space_wins:
-            if tab["windowName"] == strip_win_title(win["title"]):
+            if strip_win_title(tab["windowName"]) == strip_win_title(win["title"]):
                 tab_urls.append(tab["url"])
 
     for win in space_wins:
@@ -334,10 +334,7 @@ def get_chrome_cli_ids(windows: list[dict]) -> dict[int, int]:
 
     for win in windows:
         for tab in tabs["tabs"]:
-            win_name = (
-                tab["windowName"].encode("utf-8").decode("ascii", "ignore").strip()
-            )
-            if win_name == strip_win_title(win["title"]):
+            if strip_win_title(tab["windowName"]) == strip_win_title(win["title"]):
                 id_dict[win["id"]] = int(tab["id"])
                 break
         else:
