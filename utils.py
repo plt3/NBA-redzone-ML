@@ -9,7 +9,7 @@ NOTIFICATION_TITLE = "NBARedZone"
 ITERM_PROFILE = "ML-RedZone Placeholder"
 
 
-def run_shell(command, check=True, shell=False):
+def run_shell(command: str, check: bool = True, shell: bool = False) -> str:
     # split command into list with each element containing a word, except if command
     # contains quotes, in which case quoted part must be in one element of list. Also
     # don't split if shell=True
@@ -50,7 +50,7 @@ def run_shell(command, check=True, shell=False):
     return result.stdout
 
 
-def chrome_cli_execute(js_file, id, context_dict):
+def chrome_cli_execute(js_file: str, id: int, context_dict: dict[str, str]) -> str:
     # run JS code in given file on browser tab with given ID, passing variables to
     # replace in JS file via context_dict parameter
     with open(js_file) as f:
@@ -62,7 +62,7 @@ def chrome_cli_execute(js_file, id, context_dict):
     return run_shell(f"brave-cli execute '{js_code}' -t {id}")
 
 
-def control_stream_audio(chrome_cli_id, mute=True):
+def control_stream_audio(chrome_cli_id: int, mute: bool = True) -> None:
     if mute:
         var_dict = {"MUTE_STREAM": "true"}
     else:
@@ -71,7 +71,9 @@ def control_stream_audio(chrome_cli_id, mute=True):
     chrome_cli_execute("javascript/mute.js", chrome_cli_id, var_dict)
 
 
-def control_stream_overlay(chrome_cli_id, overlay_text, show_overlay=True):
+def control_stream_overlay(
+    chrome_cli_id: int, overlay_text: int, show_overlay: bool = True
+) -> None:
     var_dict = {"OVERLAY_TEXT": overlay_text, "SHOW_OVERLAY": "true"}
     if not show_overlay:
         var_dict["SHOW_OVERLAY"] = "false"
@@ -79,7 +81,7 @@ def control_stream_overlay(chrome_cli_id, overlay_text, show_overlay=True):
     chrome_cli_execute("javascript/overlay.js", chrome_cli_id, var_dict)
 
 
-def get_window_video_elements(chrome_cli_id):
+def get_window_video_elements(chrome_cli_id: int) -> dict:
     """Return JSON object containing whether given tab has any HTML video elements, and
     list of HTML iframe elements if not. This is because it is only possible to mute
     video elements, not iframes via JavaScript. So it's important to have a stream
@@ -89,7 +91,7 @@ def get_window_video_elements(chrome_cli_id):
     return json.loads(result)
 
 
-def notify(text, title=NOTIFICATION_TITLE):
+def notify(text: str, title: str = NOTIFICATION_TITLE) -> None:
     run_shell(f'osascript -e \'display notification "{text}" with title "{title}"\'')
 
 
@@ -149,7 +151,7 @@ def convert_open_windows_to_minimal(space: int) -> list[dict]:
 
 
 # TODO: split some of these into separate classes/files? Like chrome-cli or cover stuff
-def open_commercial_cover(space, windows):
+def open_commercial_cover(space: int, windows: list[dict]) -> int:
     res_text = run_shell(
         f'osascript -e \'tell application "iTerm" to create window with profile "{ITERM_PROFILE}"\''
     )
@@ -165,11 +167,11 @@ def open_commercial_cover(space, windows):
     return win_id
 
 
-def close_window(win_id):
+def close_window(win_id: int) -> None:
     run_shell(f"yabai -m window {win_id} --close")
 
 
-def cover_window(win_id, cover_id):
+def cover_window(win_id: int, cover_id: int) -> None:
     # TODO: probably pass this as an argument? Don't run query here
     win_info = json.loads(run_shell(f"yabai -m query --windows --window {win_id}"))
     coords = win_info["frame"]
@@ -179,7 +181,7 @@ def cover_window(win_id, cover_id):
     run_shell(f"yabai -m window {cover_id} --focus")
 
 
-def strip_win_title(title):
+def strip_win_title(title: str) -> str:
     # remove various suffixes at end of window title that make window title returned
     # by yabai differ from the one returned by chrome-cli
     title = title.encode("utf-8").decode("ascii", "ignore")
@@ -191,19 +193,21 @@ def strip_win_title(title):
     return title.replace(" - Audio playing", "").replace(" - Brave", "")
 
 
-def take_screenshot(window_id, file_path):
+def take_screenshot(window_id: int, file_path: str) -> None:
     extension = os.path.splitext(file_path)[1].removeprefix(".")
     command = f"screencapture -oxl {window_id} -t {extension} {file_path}"
     run_shell(command)
 
 
-def wait_for_load(chrome_cli_id):
+def wait_for_load(chrome_cli_id: int) -> None:
     command = f"OUTPUT_FORMAT=json brave-cli info -t {chrome_cli_id}"
     while json.loads(run_shell(command, shell=True))["loading"]:
         time.sleep(0.5)
 
 
-def let_user_choose_iframe(win_title, iframes, chrome_cli_id):
+def let_user_choose_iframe(
+    win_title: str, iframes: list[str], chrome_cli_id: int
+) -> None:
     menu_title = (
         f'\nPage with title "{win_title}" is not scriptable. '
         "Try one of these streams embedded in the page:\n"
@@ -221,6 +225,8 @@ def let_user_choose_iframe(win_title, iframes, chrome_cli_id):
             menu_highlight_style=("underline",),
         )
         choice_index = terminal_menu.show()
+        if choice_index is None or isinstance(choice_index, tuple):
+            raise Exception("No page selected.")
         if choice_index != len(iframes):
             run_shell(f"brave-cli open {iframes[choice_index]}" f" -t {chrome_cli_id}")
             wait_for_load(chrome_cli_id)
@@ -242,7 +248,7 @@ def let_user_choose_iframe(win_title, iframes, chrome_cli_id):
                     continue_added = False
 
 
-def choose_space():
+def choose_space() -> int:
     spaces = json.loads(run_shell("yabai -m query --spaces"))
     spaces.sort(key=lambda space: space["index"])
     space_indices = [space["index"] for space in spaces]
@@ -262,13 +268,13 @@ def choose_space():
     )
 
     choice_index = terminal_menu.show()
-    if choice_index is None:
+    if choice_index is None or isinstance(choice_index, tuple):
         raise Exception("No space selected.")
 
     return space_indices[choice_index]
 
 
-def choose_main_window_id(windows):
+def choose_main_window_id(windows: list[dict]) -> tuple[int, str]:
     if len(windows) == 0:
         raise Exception(f"No windows found in given space.")
     elif len(windows) == 1:
@@ -286,7 +292,7 @@ def choose_main_window_id(windows):
         )
 
         choice_index = terminal_menu.show()
-        if choice_index is None:
+        if choice_index is None or isinstance(choice_index, tuple):
             raise Exception("No main window selected.")
 
     title = strip_win_title(windows[choice_index]["title"])
@@ -320,7 +326,7 @@ def get_windows(
     return windows_info
 
 
-def get_chrome_cli_ids(windows):
+def get_chrome_cli_ids(windows: list[dict]) -> dict[int, int]:
     """Return dictionary mapping yabai window IDs to chrome-cli tab IDs (assuming 1 tab
     per window since windows are using minimal theme)"""
     tabs = json.loads(run_shell("OUTPUT_FORMAT=json brave-cli list tabs", shell=True))

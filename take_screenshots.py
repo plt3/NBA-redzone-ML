@@ -19,11 +19,15 @@ DATA_DIRECTORY = "screenshots"
 
 class ScreenshotTaker:
     def __init__(
-        self, space, interval=SCREENSHOT_INTERVAL, print_windows=False, ignore_ids=[]
-    ):
+        self,
+        space: int,
+        interval: int = SCREENSHOT_INTERVAL,
+        print_windows: bool = False,
+        ignore_ids: list[int] = [],
+    ) -> None:
         self.space = space
         self.interval = interval
-        self.windows = []
+        self.windows: list[dict] = []
         for win in get_windows(self.space, title=True):
             if win["id"] not in ignore_ids:
                 self.windows.append(win)
@@ -37,7 +41,7 @@ class ScreenshotTaker:
                 print(strip_win_title(win["title"]))
         os.makedirs(DATA_DIRECTORY, exist_ok=True)
 
-    def take_screenshots(self):
+    def take_screenshots(self) -> None:
         print(
             f"Collecting screenshots of all windows in space {self.space} to train classifier."
         )
@@ -60,5 +64,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(f"USAGE: python3 {sys.argv[0]} SPACE_NUMBER")
     else:
-        sc_taker = ScreenshotTaker(sys.argv[1], print_windows=True)
+        sc_taker = ScreenshotTaker(int(sys.argv[1]), print_windows=True)
         sc_taker.take_screenshots()

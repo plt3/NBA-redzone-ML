@@ -2,7 +2,7 @@ import os
 import sys
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QKeyEvent, QPixmap
 from PyQt6.QtWidgets import QApplication, QGridLayout, QLabel, QWidget
 
 from take_screenshots import FILE_EXTENSION
@@ -24,7 +24,7 @@ SORTED_DATA_DIRECTORY = "sorted_screenshots"
 
 
 class MainWindow(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         QWidget.__init__(self, parent=parent)
 
         os.makedirs(os.path.join(SORTED_DATA_DIRECTORY, GAME_CLASS), exist_ok=True)
@@ -67,11 +67,11 @@ class MainWindow(QWidget):
         self.screenshots.sort()
 
         self.screenshot_index = 0
-        self.screenshot_actions = {}
+        self.screenshot_actions: dict[str, str] = {}
 
         self.changePic(0)
 
-    def changePic(self, increment=1):
+    def changePic(self, increment: int = 1) -> None:
         try:
             self.screenshot_index += increment
             self.current_pic = self.screenshots[self.screenshot_index]
@@ -86,7 +86,7 @@ class MainWindow(QWidget):
             self.number_label.setText("")
             self.finished = True
 
-    def keyPressEvent(self, a0):
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
         if not self.finished and a0 is not None:
             if Qt.Key(a0.key()).name in ["Key_Right", "Key_Left"]:
                 if Qt.Key(a0.key()).name == "Key_Right":
@@ -132,7 +132,7 @@ class MainWindow(QWidget):
                         print(f"Renamed {new_path} to {old_path} to go back")
                     self.changePic(-1)
 
-    def moveFiles(self):
+    def moveFiles(self) -> None:
         """Move labeled files to SORTED_DATA_DIRECTORY. To be called once after all the manual
         labeling has been done.
         """

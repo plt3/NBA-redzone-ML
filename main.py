@@ -4,7 +4,7 @@ from take_screenshots import DATA_DIRECTORY
 from utils import choose_space
 
 
-def setup_parser():
+def setup_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Automatically mute/switch NBA streams during commercials."
         " Either specify stream URLs to open as command-line arguments, or program"
@@ -30,7 +30,7 @@ def setup_parser():
     return parser
 
 
-def main():
+def main() -> None:
     try:
         parser = setup_parser()
         args = parser.parse_args()

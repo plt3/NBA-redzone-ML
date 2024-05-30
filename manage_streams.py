@@ -45,13 +45,12 @@ class StreamManager:
         gather_data: bool = False,
         cover_commercials: bool = True,
         update_rate: int = DEFAULT_UPDATE_RATE,
-    ):
+    ) -> None:
         self.classifier = Classifier(MODEL_FILE_PATH)
         # keys: window IDs, values: True to force that window as showing a commercial,
         # False to force it as showing NBA
-        self.force_windows = {}
+        self.force_windows: dict[int, bool] = {}
         self.lock = Lock()
-        self.cover_commercials = cover_commercials
         self.update_rate = update_rate
         self.during_halftime = False
         self.windows_are_fullscreen = False
@@ -92,7 +91,7 @@ class StreamManager:
                 " browser options?"
             )
 
-        self.was_commercial = {}
+        self.was_commercial: dict[int, bool] = {}
         # initialize all windows as not showing commercials
         for win_id, chrome_cli_id in self.id_dict.items():
             self.was_commercial[win_id] = False
@@ -109,7 +108,7 @@ class StreamManager:
             run_shell("yabai -m config mouse_follows_focus off")
             print("Switched mouse_follows_focus off.")
 
-        if self.cover_commercials:
+        if cover_commercials:
             self.cover_id = open_commercial_cover(self.space, windows)
         else:
             self.cover_id = None
@@ -148,7 +147,7 @@ class StreamManager:
         # TODO: update this with keybinds too (threading)
         self.focused_id = self.main_id
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.classifier.__del__()
 
         if hasattr(self, "cover_id") and self.cover_id is not None:
@@ -170,7 +169,7 @@ class StreamManager:
         except subprocess.CalledProcessError:
             pass
 
-    def _start_flask_server(self, port):
+    def _start_flask_server(self, port: int) -> None:
         # suppress Flask output
         flask.cli.show_server_banner = lambda *_: None
         log = logging.getLogger("werkzeug")
@@ -212,10 +211,12 @@ class StreamManager:
         message += f"http://{ip}{port_str} has been copied to clipboard."
         print(message)
 
-    def flask_main_route(self):
+    def flask_main_route(self) -> str:
         return render_template("index.html")
 
-    def handle_focus_window_request(self, win_id):
+    def handle_focus_window_request(
+        self, win_id: int
+    ) -> tuple[dict[str, str], int] | dict[str, str]:
         """Focus window with given ID and make that window the new main window"""
         # debounce calls due to yabai signals
         if time.time() - self.last_focus_called < 1:
@@ -236,7 +237,9 @@ class StreamManager:
 
         return {}
 
-    def handle_toggle_fullscreen_request(self, win_id):
+    def handle_toggle_fullscreen_request(
+        self, win_id: int
+    ) -> tuple[dict[str, str], int] | dict[str, str]:
         # yabai calls this too often bc of resizing windows, so debounce
         if time.time() - self.last_fullscreen_called < 1:
             return {"message": "Must wait >= 1 second between calls"}, 400
@@ -260,7 +263,9 @@ class StreamManager:
 
         return {}
 
-    def handle_halftime_request(self):
+    def handle_halftime_request(
+        self,
+    ) -> tuple[dict[str, int | str], int] | dict[str, int]:
         """Start/stop halftime break in main window"""
         with self.lock:
             if self.during_halftime:
@@ -270,7 +275,9 @@ class StreamManager:
 
         return {"timeout": HALFTIME_DURATION}
 
-    def handle_force_commercial_request(self):
+    def handle_force_commercial_request(
+        self,
+    ) -> tuple[dict[str, str], int] | dict[str, str]:
         """Start/stop untimed commercial break in main window"""
         with self.lock:
             if self.during_halftime:
@@ -300,7 +307,7 @@ class StreamManager:
             self.return_to_main()
             return {"next_action": "Force commercial"}
 
-    def handle_force_nba_request(self):
+    def handle_force_nba_request(self) -> dict[str, str]:
         """Force/stop forcing showing game in main window"""
         with self.lock:
             # force NBA if no previous force or if previous force was commercial
@@ -337,7 +344,7 @@ class StreamManager:
                 self.switch_away_from_main()
             return {"next_action": "Force NBA"}
 
-    def force_halftime(self):
+    def force_halftime(self) -> None:
         """Switch to other stream for the duration of halftime in main
         stream, then switch back to main stream.
         """
@@ -372,7 +379,7 @@ class StreamManager:
         if return_to_main:
             self.return_to_main()
 
-    def handle_iframes(self, windows):
+    def handle_iframes(self, windows: list[dict]) -> None:
         """Can't mute/unmute a page with JavaScript if its video elements are playing
         in iframes due to same-origin policy. Therefore, detect this and let user
         choose a stream that was in an iframe as whole page.
@@ -390,7 +397,7 @@ class StreamManager:
 
                 let_user_choose_iframe(title, iframes, chrome_cli_id)
 
-    def fullscreen_window(self, windows, window_id):
+    def fullscreen_window(self, windows: list[dict], window_id: int) -> None:
         """If in tile view, call without specifying window_id to fullscreen focused window
         (and fullscreen all other windows behind it). If all windows are fullscreened, specify
         window_id of window to bring to front. This will also unmute it and mute previous
@@ -410,7 +417,9 @@ class StreamManager:
                     self.id_dict[window["id"]], mute=(window["id"] != window_id)
                 )
 
-    def win_is_commercial(self, win_id, double_check=True, force=None):
+    def win_is_commercial(
+        self, win_id: int, double_check: bool = True, force: bool | None = None
+    ) -> bool:
         if force is not None:
             is_commercial = force
         else:
@@ -421,7 +430,7 @@ class StreamManager:
 
         return is_commercial
 
-    def switch_away_from_main(self):
+    def switch_away_from_main(self) -> None:
         print("switching away from main stream")
         # find non-main window that isn't showing a commercial
         new_id = None
@@ -435,7 +444,7 @@ class StreamManager:
                     self.focused_id = new_id
                     break
 
-        if self.cover_commercials:
+        if self.cover_id is not None:
             cover_window(self.main_id, self.cover_id)
         if fullscreen:
             if new_id is not None:
@@ -452,7 +461,7 @@ class StreamManager:
                 print("switching to other frame")
                 control_stream_audio(self.id_dict[new_id], mute=False)
 
-    def return_to_main(self):
+    def return_to_main(self) -> None:
         print("returning to main stream")
         windows = get_windows(self.space)
         fullscreen = windows[0]["fullscreen"]
@@ -467,7 +476,7 @@ class StreamManager:
             control_stream_audio(self.id_dict[self.main_id], mute=False)
             self.focused_id = self.main_id
 
-    def handle_if_main_commercial(self):
+    def handle_if_main_commercial(self) -> None:
         print("running handle_if_main_commercial")
         with self.lock:
             was_commercial = self.was_commercial[self.main_id]
@@ -484,7 +493,7 @@ class StreamManager:
             elif was_commercial and not is_commercial:
                 self.return_to_main()
 
-    def mainloop(self):
+    def mainloop(self) -> None:
         try:
             while True:
                 time.sleep(self.update_rate)

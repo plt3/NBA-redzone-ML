@@ -17,21 +17,21 @@ IMAGE_DIMS = (200, 320)
 class Classifier:
     def __init__(
         self,
-        model_file_path,
-        screenshot_tempfile="nbaredzone_screenshot.jpg",
-    ):
+        model_file_path: str,
+        screenshot_tempfile: str = "nbaredzone_screenshot.jpg",
+    ) -> None:
         self.screenshot_tempfile = screenshot_tempfile
         self.model_file_path = model_file_path
         self.model = keras.models.load_model(self.model_file_path)
 
-    def __del__(self):
+    def __del__(self) -> None:
         try:
             os.remove(self.screenshot_tempfile)
             print("Screenshot temp image file removed.")
         except FileNotFoundError:
             pass
 
-    def classify(self, win_id, double_check_commercials=True):
+    def classify(self, win_id: int, double_check_commercials: bool = True) -> bool:
         """Return whether window with given ID is displaying a commercial"""
         start = time.time()
         take_screenshot(win_id, self.screenshot_tempfile)
