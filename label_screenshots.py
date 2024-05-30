@@ -5,7 +5,13 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent, QPixmap
 from PyQt6.QtWidgets import QApplication, QGridLayout, QLabel, QWidget
 
-from take_screenshots import FILE_EXTENSION
+from constants import (
+    COMMERCIAL_CLASS,
+    FILE_EXTENSION,
+    GAME_CLASS,
+    SORTED_DATA_DIRECTORY,
+    UNSORTED_DATA_DIRECTORY,
+)
 
 """
 GUI utility to easily label screenshots as being either NBA games or commercials.
@@ -16,11 +22,6 @@ when labeling. D key deletes an image.
 
 Stop by quitting the Python app.
 """
-
-GAME_CLASS = "game"
-COMMERCIAL_CLASS = "com"
-UNSORTED_DATA_DIRECTORY = "screenshots"
-SORTED_DATA_DIRECTORY = "sorted_screenshots"
 
 
 class MainWindow(QWidget):

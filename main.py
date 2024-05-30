@@ -1,6 +1,6 @@
 import argparse
 
-from take_screenshots import DATA_DIRECTORY
+from constants import DATA_DIRECTORY, DEFAULT_PORT, MODEL_FILE_PATH
 from utils import choose_space
 
 
@@ -12,6 +12,25 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "-s", "--space", type=int, help="Desktop space to display streams in"
+    )
+    parser.add_argument(
+        "-c",
+        "--classifier-path",
+        default=MODEL_FILE_PATH,
+        help="Path to classifier .keras file",
+    )
+    parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help="Port on which to run server for remote control",
+    )
+    parser.add_argument(
+        "-n",
+        "--no-cover",
+        action="store_true",
+        help="Don't cover commercials with iTerm2 window",
     )
     parser.add_argument(
         "-t",
@@ -41,7 +60,12 @@ def main() -> None:
         from manage_streams import StreamManager
 
         manager = StreamManager(
-            args.space, args.URLs, gather_data=args.take_screenshots
+            args.space,
+            args.URLs,
+            classifier_path=args.classifier_path,
+            server_port=args.port,
+            gather_data=args.take_screenshots,
+            cover_commercials=not args.no_cover,
         )
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt received, aborting.")

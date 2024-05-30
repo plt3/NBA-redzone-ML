@@ -8,6 +8,12 @@ import flask.cli
 from flask import Flask, render_template
 
 from classifier import Classifier
+from constants import (
+    DEFAULT_PORT,
+    DEFAULT_UPDATE_RATE,
+    HALFTIME_DURATION,
+    MODEL_FILE_PATH,
+)
 from take_screenshots import ScreenshotTaker
 from utils import (
     choose_main_window_id,
@@ -26,12 +32,6 @@ from utils import (
     strip_win_title,
 )
 
-# from ml_models/part5.py
-MODEL_FILE_PATH = "ml_models/part5_cropped_5-29-24.keras"
-DEFAULT_UPDATE_RATE = 3
-# when making request to start halftime, stop classification for 15 minutes
-HALFTIME_DURATION = 15 * 60
-
 
 class StreamManager:
     yabai_focus_signal_label = "MLRedZoneFocus"
@@ -41,12 +41,13 @@ class StreamManager:
         self,
         space: int,
         urls: list[str] = [],
-        server_port: int = 80,
+        classifier_path: str = MODEL_FILE_PATH,
+        server_port: int = DEFAULT_PORT,
         gather_data: bool = False,
         cover_commercials: bool = True,
         update_rate: int = DEFAULT_UPDATE_RATE,
     ) -> None:
-        self.classifier = Classifier(MODEL_FILE_PATH)
+        self.classifier = Classifier(classifier_path)
         # keys: window IDs, values: True to force that window as showing a commercial,
         # False to force it as showing NBA
         self.force_windows: dict[int, bool] = {}
@@ -148,7 +149,8 @@ class StreamManager:
         self.focused_id = self.main_id
 
     def __del__(self) -> None:
-        self.classifier.__del__()
+        if hasattr(self, "classifier"):
+            self.classifier.__del__()
 
         if hasattr(self, "cover_id") and self.cover_id is not None:
             close_window(self.cover_id)

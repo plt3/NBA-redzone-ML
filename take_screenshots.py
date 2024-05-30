@@ -3,6 +3,7 @@ import sys
 import time
 from datetime import datetime
 
+from constants import DATA_DIRECTORY, FILE_EXTENSION, SCREENSHOT_INTERVAL
 from utils import get_windows, strip_win_title, take_screenshot
 
 """
@@ -11,10 +12,6 @@ in order to get data for ML model.
 
 Press ctrl + c to stop
 """
-
-FILE_EXTENSION = "jpg"
-SCREENSHOT_INTERVAL = 60
-DATA_DIRECTORY = "screenshots"
 
 
 class ScreenshotTaker:

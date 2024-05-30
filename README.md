@@ -42,6 +42,8 @@ https://github.com/plt3/NBA-redzone-ML/assets/65266160/c8e18b83-1326-424c-b71d-5
 
 - clone this repository
 - in Brave Browser, make sure View > Developer > Allow JavaScript from Apple Events is checked (see [chrome-cli documentation](https://github.com/prasmussen/chrome-cli?tab=readme-ov-file#javascript-execution-and-viewing-source))
+- download image classifier weights:
+  - download part5_cropped_5-29-24.keras from [Hugging Face repository](https://huggingface.co/plt3/NBA-redzone-ML/blob/main/part5_cropped_5-29-24.keras) and place it in `ml_models` directory (you can also specify a different path with `-p/--path-to-classifier` argument)
 - optional: setup an opaque iTerm2 profile to use to cover commercials
   - when ML-RedZone determines that the stream is showing a commercial, it can optionally cover the stream with an iTerm2 window to
     avoid having to look at the commercial. I chose to use an iTerm2 window as this cover because you can make them transparent, so you
@@ -49,7 +51,6 @@ https://github.com/plt3/NBA-redzone-ML/assets/65266160/c8e18b83-1326-424c-b71d-5
   - import default iTerm2 cover profile in Settings > Profiles > Other Actions > Import JSON Profiles, and choose `iterm_cover_profile.json`
     in this repository
   - I also recommend adding some relaxing or interesting background image, so that you can look at it during commercials
-- download image classifier weights TODO
 
 ### Launching the Program:
 
