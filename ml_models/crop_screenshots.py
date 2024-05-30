@@ -16,13 +16,13 @@ class ImageCropper:
 
     NUM_STEPS = 50
 
-    def __init__(self, image_path):
+    def __init__(self, image_path: str) -> None:
         self.image_path = image_path
         self.img = Image.open(self.image_path)
         self.width, self.height = self.img.size
         self.pixel_map = self.img.load()
 
-    def find_top_bottom_edge(self, edge_type) -> int:
+    def find_top_bottom_edge(self, edge_type: str) -> int:
         if edge_type == "top":
             # this starts at right of browser window header
             start_pixel = (self.width - 50, 20)
@@ -32,6 +32,9 @@ class ImageCropper:
             increment = -1
         else:
             return 0
+
+        if self.pixel_map is None:
+            raise Exception("self.pixel_map is None")
 
         lines = []
         for column in range(
@@ -61,7 +64,9 @@ class ImageCropper:
             raise Exception(f"{edge_type} edge of {self.image_path} not found.")
         return max(set(lines), key=lines.count)
 
-    def find_left_right_edge(self, edge_type, top_bottom=None) -> int:
+    def find_left_right_edge(
+        self, edge_type: str, top_bottom: tuple[int, int] | None = None
+    ) -> int:
         if edge_type == "left":
             # this starts below the left of browser window header
             start_pixel = (0, 100)
@@ -77,6 +82,9 @@ class ImageCropper:
             bottom = self.height // 2
         else:
             top, bottom = top_bottom
+
+        if self.pixel_map is None:
+            raise Exception("self.pixel_map is None")
 
         lines = []
         for row in range(
@@ -108,7 +116,7 @@ class ImageCropper:
             raise Exception(f"{edge_type} edge of {self.image_path} not found.")
         return max(set(lines), key=lines.count)
 
-    def find_training_image_edge(self, edge_type) -> int:
+    def find_training_image_edge(self, edge_type: str) -> int:
         """Use (relatively) simpler heuristic to crop training images: remove all
         rows of known pixel values (such as Brave Browser address bar or window
         background from Fullscreen Anything browser extension)"""
@@ -122,6 +130,9 @@ class ImageCropper:
             increment = -1
         else:
             return 0
+
+        if self.pixel_map is None:
+            raise Exception("self.pixel_map is None")
 
         address_bar_colors = [
             (40, 40, 40),  # address bar when not focused
@@ -164,7 +175,9 @@ class ImageCropper:
             else:
                 raise Exception(f"{edge_type} edge of {self.image_path} not found.")
 
-    def get_crop_points(self, training, crop_left_right):
+    def get_crop_points(
+        self, training: bool, crop_left_right: bool
+    ) -> tuple[int, int, int, int]:
         if training:
             top = self.find_training_image_edge("top")
             bottom = self.find_training_image_edge("bottom")
@@ -181,7 +194,7 @@ class ImageCropper:
 
         return top, bottom, left, right
 
-    def view_crop(self, training=False, crop_left_right=True):
+    def view_crop(self, training: bool = False, crop_left_right: bool = True) -> None:
         top, bottom, left, right = self.get_crop_points(training, crop_left_right)
 
         draw_color = "green"
@@ -193,7 +206,12 @@ class ImageCropper:
         draw.line((right, top, right, bottom), fill=draw_color, width=draw_width)
         self.img.show()
 
-    def crop_image(self, training=False, crop_left_right=True, resize_dims=None):
+    def crop_image(
+        self,
+        training: bool = False,
+        crop_left_right: bool = True,
+        resize_dims: tuple[int, int] | None = None,
+    ) -> Image.Image:
         """NOTE: resize_dims must be of the form (width, height). training=True
         uses simpler algorithm to crop images by matching border colors and removing
         them. May not work for input images with different background colors depending
@@ -215,8 +233,12 @@ class ImageCropper:
         return cropped_img
 
     def save_cropped_image(
-        self, training=False, crop_left_right=True, resize_dims=None, output_path=None
-    ):
+        self,
+        training: bool = False,
+        crop_left_right: bool = True,
+        resize_dims: tuple[int, int] | None = None,
+        output_path: str | None = None,
+    ) -> str:
         """NOTE: resize_dims must be of the form (width, height). training=True
         uses simpler algorithm to crop images by matching border colors and removing
         them. May not work for input images with different background colors depending

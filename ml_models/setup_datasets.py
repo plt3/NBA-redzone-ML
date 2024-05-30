@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import splitfolders
 from crop_screenshots import ImageCropper
-from tensorflow.keras.utils import image_dataset_from_directory
+from keras.api.utils import image_dataset_from_directory
 from tqdm import tqdm
 
 INPUT_DIR = "../sorted_screenshots"
@@ -11,7 +11,7 @@ OUTPUT_DIR = "model_data"
 IMAGE_DIMS = (200, 320)
 
 
-def create_model_data(crop=False):
+def create_model_data(crop: bool = False) -> None:
     if not os.path.exists(OUTPUT_DIR):
         splitfolders.ratio(
             INPUT_DIR,
@@ -37,7 +37,7 @@ def create_model_data(crop=False):
                             print(e)
 
 
-def get_datasets():
+def get_datasets() -> tuple:
     # returns tuple of training, validation, and testing datasets
     return_list = []
     for ds_type in ["train", "val", "test"]:
@@ -53,7 +53,7 @@ def get_datasets():
     return tuple(return_list)
 
 
-def view_dataset(dataset):
+def view_dataset(dataset) -> None:
     plt.figure(figsize=(10, 10))
     for images, _ in dataset.take(1):
         for i in range(9):
@@ -63,7 +63,7 @@ def view_dataset(dataset):
     plt.show()
 
 
-def main():
+def main() -> None:
     create_model_data(True)
 
 

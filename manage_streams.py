@@ -227,6 +227,8 @@ class StreamManager:
             return {"message": f"{win_id} is not a stream window"}, 400
         elif win_id == self.focused_id:
             return {"message": f"{win_id} is already focused"}, 400
+        elif win_id == self.main_id:
+            return {"message": f"{win_id} is already main window"}, 400
 
         with self.lock:
             self.was_commercial[self.main_id] = False
@@ -444,17 +446,19 @@ class StreamManager:
                     self.focused_id = new_id
                     break
 
-        if self.cover_id is not None:
-            cover_window(self.main_id, self.cover_id)
         if fullscreen:
             if new_id is not None:
                 print("fs other stream")
                 # fullscreen stream showing game
                 self.fullscreen_window(windows, new_id)
             else:
+                if self.cover_id is not None:
+                    cover_window(self.main_id, self.cover_id)
                 control_stream_audio(self.id_dict[self.main_id], mute=True)
         else:
             print("muting")
+            if self.cover_id is not None:
+                cover_window(self.main_id, self.cover_id)
             control_stream_audio(self.id_dict[self.main_id], mute=True)
             if new_id is not None:
                 # switch to stream showing game

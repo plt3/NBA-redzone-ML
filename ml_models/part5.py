@@ -1,7 +1,7 @@
+import keras
 import matplotlib.pyplot as plt
+from keras import layers
 from setup_datasets import IMAGE_DIMS, get_datasets
-from tensorflow import keras
-from tensorflow.keras import layers
 
 model_file_name = "part5_cropped_5-29-24.keras"
 train_dataset, validation_dataset, test_dataset = get_datasets()

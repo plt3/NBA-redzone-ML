@@ -3,9 +3,9 @@ import time
 
 print("Importing Python machine learning libraries, this may take a few seconds...")
 
+import keras
 import numpy as np
-from tensorflow import keras
-from tensorflow.keras.preprocessing.image import img_to_array
+from keras.api.preprocessing.image import img_to_array
 
 from ml_models.crop_screenshots import ImageCropper
 from utils import take_screenshot
