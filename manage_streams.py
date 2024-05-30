@@ -55,6 +55,8 @@ class StreamManager:
         self.update_rate = update_rate
         self.during_halftime = False
         self.windows_are_fullscreen = False
+        self.last_focus_called = time.time()
+        self.last_fullscreen_called = time.time()
 
         self.space = space
 
@@ -68,7 +70,6 @@ class StreamManager:
             windows = convert_open_windows_to_minimal(self.space)
         else:
             windows = open_stream_windows(urls, self.space)
-        windows = get_windows(self.space, title=True)
 
         self.id_dict = get_chrome_cli_ids(windows)
 
@@ -113,12 +114,6 @@ class StreamManager:
         else:
             self.cover_id = None
 
-        # run skhd_process in background for hotkeys to work
-        env = os.environ.copy()
-        env["MLREDZONE_PORT"] = str(server_port)
-        self.skhd_process = subprocess.Popen(["skhd", "-c", "./skhdrc"], env=env)
-        print("skhd process started.")
-
         self._start_flask_server(server_port)
 
         # send window focus request when window is focused
@@ -156,13 +151,9 @@ class StreamManager:
     def __del__(self):
         self.classifier.__del__()
 
-        if hasattr(self, "cover_id"):
+        if hasattr(self, "cover_id") and self.cover_id is not None:
             close_window(self.cover_id)
             print("Commercial cover window closed.")
-
-        if hasattr(self, "skhd_process"):
-            self.skhd_process.terminate()
-            print("skhd process terminated.")
 
         if hasattr(self, "mouse_follows_focus"):
             if self.mouse_follows_focus != "off":
@@ -226,6 +217,11 @@ class StreamManager:
 
     def handle_focus_window_request(self, win_id):
         """Focus window with given ID and make that window the new main window"""
+        # debounce calls due to yabai signals
+        if time.time() - self.last_focus_called < 1:
+            return {"message": "Must wait >= 1 second between calls"}, 400
+        self.last_focus_called = time.time()
+
         if win_id not in [win["id"] for win in get_windows(self.space)]:
             return {"message": f"{win_id} is not a stream window"}, 400
         elif win_id == self.focused_id:
@@ -241,14 +237,18 @@ class StreamManager:
         return {}
 
     def handle_toggle_fullscreen_request(self, win_id):
-        if win_id != self.main_id:
-            return {}
+        # yabai calls this too often bc of resizing windows, so debounce
+        if time.time() - self.last_fullscreen_called < 1:
+            return {"message": "Must wait >= 1 second between calls"}, 400
+        self.last_fullscreen_called = time.time()
+        if win_id != self.focused_id:
+            return {"message": "Can only fullscreen focused window"}, 400
 
         windows = get_windows(self.space)
 
         if not self.windows_are_fullscreen:
             print("Fullscreening windows")
-            self.fullscreen_window(windows, self.main_id)
+            self.fullscreen_window(windows, self.focused_id)
         else:
             print("Switching back to tile view")
             for win in windows:
@@ -403,9 +403,9 @@ class StreamManager:
                         f"yabai -m window {window['id']} --toggle zoom-fullscreen"
                     )
                 if window["id"] == window_id:
-                    run_shell(f"yabai -m window {window['id']} --focus")
                     with self.lock:
                         self.focused_id = window_id
+                    run_shell(f"yabai -m window {window['id']} --focus")
                 control_stream_audio(
                     self.id_dict[window["id"]], mute=(window["id"] != window_id)
                 )
@@ -435,6 +435,8 @@ class StreamManager:
                     self.focused_id = new_id
                     break
 
+        if self.cover_commercials:
+            cover_window(self.main_id, self.cover_id)
         if fullscreen:
             if new_id is not None:
                 print("fs other stream")
@@ -445,8 +447,6 @@ class StreamManager:
         else:
             print("muting")
             control_stream_audio(self.id_dict[self.main_id], mute=True)
-            if self.cover_commercials:
-                cover_window(self.main_id, self.cover_id)
             if new_id is not None:
                 # switch to stream showing game
                 print("switching to other frame")

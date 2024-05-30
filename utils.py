@@ -182,6 +182,7 @@ def cover_window(win_id, cover_id):
 def strip_win_title(title):
     # remove various suffixes at end of window title that make window title returned
     # by yabai differ from the one returned by chrome-cli
+    title = title.encode("utf-8").decode("ascii", "ignore")
     try:
         end_index = title.index(" - High memory usage")
         title = title[:end_index]
@@ -327,8 +328,10 @@ def get_chrome_cli_ids(windows):
 
     for win in windows:
         for tab in tabs["tabs"]:
-            # Unsure if this check is robust enough
-            if tab["windowName"] == strip_win_title(win["title"]):
+            win_name = (
+                tab["windowName"].encode("utf-8").decode("ascii", "ignore").strip()
+            )
+            if win_name == strip_win_title(win["title"]):
                 id_dict[win["id"]] = int(tab["id"])
                 break
         else:
