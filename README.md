@@ -39,9 +39,9 @@ also unmute and focus a game that is not showing a commercial.
   - when ML-RedZone determines that the stream is showing a commercial, it can optionally cover the stream with an iTerm2 window to
     avoid having to look at the commercial. I chose to use an iTerm2 window as this cover because you can make them transparent, so you
     can keep an eye on the stream in case there is an error with the automatic commercial detection
-  - when creating the profile, setting transparency to 7 in the Window tab is a good value
-  - I recommend using some relaxing or interesting background image, so that you can look at it during commercials
-  - make sure to call the profile "ML-RedZone Placeholder"
+  - import default iTerm2 cover profile in Settings > Profiles > Other Actions > Import JSON Profiles, and choose `iterm_cover_profile.json`
+    in this repository
+  - I also recommend adding some relaxing or interesting background image, so that you can look at it during commercials
 - download image classifier weights TODO
 
 ### Launching the Program:
@@ -84,14 +84,26 @@ actions you can perform to override/change its behavior.
   - `Force NBA`: press to force classification as an NBA game in the main stream. This can be useful if NBA-redzone-ML thinks the main stream
     is displaying a commercial, but it is actually a game. Press it again to stop forcing an NBA game.
 
-## Scripts:
+## Training Your Own Image Classifier:
 
-### Gathering data for ML classifier:
+This repository comes with code to gather data for and train the NBA game/commercial image classifier
+
+### Gathering Data:
 
 - `take_screenshots.py`: run while watching up to 4 streams (in the same desktop space) to take screenshots of each stream every 60 seconds
+  - make sure that the windows showing the streams are in the minimal browser theme (i.e. opened with `open -a "Brave Browser.app" -n --args --new-window --app=https://stream-link-here`)
 - `label_screenshots.py`: GUI utility to easily label each screenshot taken by `take_screenshots.py` as representing an NBA game or a commercial
+  - press right arrow key to label image as an NBA game, and left arrow key to label it as a commercial
+  - press up arrow key to go back one image to correct mistakes
+  - press `D` key to delete image
+  - `label_screenshots.py` will put all labeled images in the `sorted_screenshots` directory
 
-### Training/evaluating the ML classifier:
+### Training/Evaluating the Image Classifier:
 
+- first, run `ml_models/setup_datasets.py` to split `sorted_screenshots` into train, test, and validation datasets and crop all images in them
+- `part5.py` is the code for the image classifier used in this project
+  - run it to train the classifier (note that this takes about 8 hours for 5000 total images on a 2020 M1 MacBook Air) and plot the results
 - `predict.py`: run the classifier on evaluation data, and print out false positives/negatives
+  - make sure to set the `model_file_name` variable accordingly
 - `wrongs.py`: display images the classifier wrongly classified. Copy and paste output from `predict.py` into wrongs.txt, then run `wrongs.py` to see all mistakes it made
+  - use the right arrow key to cycle through the images

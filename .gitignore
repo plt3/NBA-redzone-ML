@@ -8,6 +8,7 @@ screenshots
 *.npy
 *.mp4
 *.jpg
+*.jpeg
 ml_model_attempts/data/training
 ml_model_attempts/data/validation
 ml_model_attempts/data/evaluation
