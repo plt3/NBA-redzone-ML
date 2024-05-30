@@ -10,6 +10,13 @@ detects that the stream is displaying a commercial, NBA-redzone-ML mutes the str
 opaque window to avoid having to watch or hear the commercial. If other windows are simultaneously streaming games, it will
 also unmute and focus a game that is not showing a commercial.
 
+## Example:
+
+Demonstration of clicking on different streams to switch main stream, and of switching streams after automatic commercial detection
+(make sure to turn volume up to hear automatic stream muting/unmuting)
+
+https://github.com/plt3/NBA-redzone-ML/assets/65266160/c8e18b83-1326-424c-b71d-5c7e68680caf
+
 ## Features:
 
 - automatic commercial detection (around 98% accurate in testing)
@@ -83,6 +90,10 @@ actions you can perform to override/change its behavior.
     recognizing a commercial automatically. Press it again to stop forcing commercials.
   - `Force NBA`: press to force classification as an NBA game in the main stream. This can be useful if NBA-redzone-ML thinks the main stream
     is displaying a commercial, but it is actually a game. Press it again to stop forcing an NBA game.
+
+#### Screenshot of Remote Control:
+
+<img height="500" alt="NBA-redzone-ML" src="https://github.com/plt3/NBA-redzone-ML/assets/65266160/03c972da-fd11-482e-bdb3-e2a69285713f">
 
 ## Training Your Own Image Classifier:
 
