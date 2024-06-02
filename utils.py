@@ -71,16 +71,6 @@ def control_stream_audio(chrome_cli_id: int, mute: bool = True) -> None:
     chrome_cli_execute("javascript/mute.js", chrome_cli_id, var_dict)
 
 
-def control_stream_overlay(
-    chrome_cli_id: int, overlay_text: int, show_overlay: bool = True
-) -> None:
-    var_dict = {"OVERLAY_TEXT": overlay_text, "SHOW_OVERLAY": "true"}
-    if not show_overlay:
-        var_dict["SHOW_OVERLAY"] = "false"
-
-    chrome_cli_execute("javascript/overlay.js", chrome_cli_id, var_dict)
-
-
 def get_window_video_elements(chrome_cli_id: int) -> dict:
     """Return JSON object containing whether given tab has any HTML video elements, and
     list of HTML iframe elements if not. This is because it is only possible to mute

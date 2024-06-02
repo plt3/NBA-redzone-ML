@@ -17,3 +17,6 @@
 - part5_cropped_5-29-24.keras: 97.8% on test data, 98.01% on predict.py on 5/29/24 (5513 images total), with 200x320 images
   - this is also after reclassifying some images (see reclassified_images.txt)
 - part3_cropped_5-29-24.keras: 98.2% on test data, 98.28% on predict.py on 5/29/24 (5513 images total), with 200x320 images
+- part3_6-1-24.keras: 97.6% on test data (5588 images total), with 200x320 UNCROPPED images. Still have browser bar, etc. etc.
+  - note that this seems like very little difference without cropping, but this might cause issues with screenshots on windows
+    of different sizes (i.e. with a lot of black space), etc.
